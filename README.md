@@ -179,3 +179,24 @@ WORKSPACE_PRIVATO/publication/
 File precedenti con lo stesso nome vengono conservati mediante backup
 timestampati. PDF ed EPUB vengono validati prima di sostituire gli output
 esistenti.
+
+## Release corrente
+
+Versione stabile: `0.4.0`.
+
+La pipeline assistita completa è disponibile:
+
+```text
+URL YouTube
+  → inspect
+  → transcript
+  → prepare
+  → revisione editoriale
+  → publish
+  → PDF + EPUB validati
+```
+
+Note complete:
+
+- `CHANGELOG.md`
+- `docs/release-notes-v0.4.0.md`
