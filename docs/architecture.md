@@ -117,3 +117,18 @@ La fase `prepare`:
 - genera il Markdown da caricare per la revisione editoriale;
 - adotta senza riscriverli output completi già esistenti;
 - registra le fasi `transcribe` e `prepare` nel file di stato.
+
+### Fase publish
+
+La fase `publish`:
+
+- accetta una Lesson Learned revisionata in Markdown;
+- ricava il titolo dall'H1;
+- normalizza il titolo Kindle;
+- renderizza HTML semantico senza dipendenze Python esterne;
+- genera PDF ed EPUB separatamente tramite Calibre;
+- valida struttura EPUB e testo recuperabile;
+- valida il testo recuperabile dal PDF;
+- conserva gli output precedenti con backup timestampati;
+- genera un manifest con hash SHA-256;
+- registra la pubblicazione nello stato della pipeline.

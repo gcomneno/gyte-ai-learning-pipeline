@@ -21,6 +21,12 @@ from gyte_study_tools.preparation import (
     PreparationResult,
     prepare_transcript,
 )
+from gyte_study_tools.publishing import (
+    DEFAULT_AUTHOR,
+    PublicationError,
+    PublicationResult,
+    publish_lesson,
+)
 
 
 REQUIRED_COMMANDS: tuple[str, ...] = (
@@ -60,6 +66,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Rigenera gli output della fase prepare.",
+    )
+    parser.add_argument(
+        "--publish-from",
+        type=Path,
+        help=(
+            "Pubblica una Lesson Learned Markdown revisionata "
+            "dopo inspect e prepare."
+        ),
+    )
+    parser.add_argument(
+        "--author",
+        default=DEFAULT_AUTHOR,
+        help=f"Autore degli ebook (default: {DEFAULT_AUTHOR}).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help=(
+            "Directory degli output editoriali "
+            "(default: WORKSPACE/publication)."
+        ),
     )
     parser.add_argument(
         "--work-root",
@@ -150,17 +177,43 @@ def print_inspection(result: InspectionResult) -> None:
 def print_preparation(result: PreparationResult) -> None:
     print()
     print("===== PREPARAZIONE TRANSCRIPT =====")
-    print(f"Sorgente:       {result.source_transcript_path.name}")
-    print(f"Modalità:       {result.source_mode}")
-    print(f"Output riusati: {'sì' if result.reused else 'no'}")
-    print(f"Parole raw:     {result.raw_words}")
-    print(f"Parole norm.:   {result.normalized_words}")
-    print(f"Parole analysis:{result.analysis_words}")
+    print(f"Sorgente:        {result.source_transcript_path.name}")
+    print(f"Modalità:        {result.source_mode}")
+    print(f"Output riusati:  {'sì' if result.reused else 'no'}")
+    print(f"Parole raw:      {result.raw_words}")
+    print(f"Parole norm.:    {result.normalized_words}")
+    print(f"Parole analysis: {result.analysis_words}")
     print()
     print("File da caricare in chat:")
     print(result.analysis_markdown_path)
     print()
     print("ESITO: fase prepare completata.")
+
+
+def print_publication(result: PublicationResult) -> None:
+    print()
+    print("===== PUBBLICAZIONE LESSON LEARNED =====")
+    print(f"Titolo:         {result.title}")
+    print(f"Autore:         {result.author}")
+    print(f"Parole sorgente:{result.metrics.source_words}")
+    print(f"Parole PDF:     {result.metrics.pdf_words}")
+    print(f"Parole EPUB:    {result.metrics.epub_words}")
+    print(f"Markdown:       {result.canonical_markdown_path}")
+    print(f"HTML:           {result.html_path}")
+    print(f"PDF:            {result.pdf_path}")
+    print(f"EPUB:           {result.epub_path}")
+    print(f"Manifest:       {result.manifest_path}")
+
+    if result.backups:
+        print("Backup creati:")
+
+        for original, backup in result.backups.items():
+            print(f"  {original} -> {backup}")
+    else:
+        print("Backup creati:  nessuno")
+
+    print()
+    print("ESITO: fase publish completata.")
 
 
 def inspection_to_dict(result: InspectionResult) -> dict[str, object]:
@@ -190,6 +243,27 @@ def preparation_to_dict(result: PreparationResult) -> dict[str, object]:
     }
 
 
+def publication_to_dict(result: PublicationResult) -> dict[str, object]:
+    return {
+        "title": result.title,
+        "author": result.author,
+        "source_path": str(result.source_path),
+        "canonical_markdown_path": str(
+            result.canonical_markdown_path
+        ),
+        "html_path": str(result.html_path),
+        "pdf_path": str(result.pdf_path),
+        "epub_path": str(result.epub_path),
+        "manifest_path": str(result.manifest_path),
+        "word_counts": {
+            "source": result.metrics.source_words,
+            "pdf": result.metrics.pdf_words,
+            "epub": result.metrics.epub_words,
+        },
+        "backups": result.backups,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -201,6 +275,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.inspect_only and args.force:
         parser.error("--force non è applicabile con --inspect-only.")
+
+    if args.inspect_only and args.publish_from:
+        parser.error(
+            "--publish-from non è applicabile con --inspect-only."
+        )
+
+    if args.output_dir and not args.publish_from:
+        parser.error("--output-dir richiede --publish-from.")
 
     if not args.url:
         parser.print_help()
@@ -216,9 +298,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 force=args.force,
             )
         )
+        publication = (
+            publish_lesson(
+                workdir=inspection.workdir,
+                source_path=args.publish_from,
+                author=args.author,
+                output_dir=args.output_dir,
+            )
+            if args.publish_from is not None
+            else None
+        )
     except (
         InspectionError,
         PreparationError,
+        PublicationError,
         OSError,
     ) as error:
         print(f"ERRORE: {error}", file=sys.stderr)
@@ -232,12 +325,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         if preparation is not None:
             output["preparation"] = preparation_to_dict(preparation)
 
+        if publication is not None:
+            output["publication"] = publication_to_dict(publication)
+
         print(json.dumps(output, ensure_ascii=False, indent=2))
     else:
         print_inspection(inspection)
 
         if preparation is not None:
             print_preparation(preparation)
+
+        if publication is not None:
+            print_publication(publication)
 
     return 0
 

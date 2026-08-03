@@ -150,3 +150,32 @@ gyte-lesson-kindle --force URL_YOUTUBE
 ```
 
 Il fallback audio con Whisper non è ancora implementato.
+
+## Terza fase disponibile: publish
+
+Dopo la revisione editoriale, la Lesson Learned deve essere salvata in
+Markdown e può essere pubblicata con:
+
+```bash
+gyte-lesson-kindle \
+  --publish-from "/percorso/Lesson Learned.md" \
+  "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+La pubblicazione genera, dalla stessa sorgente semantica:
+
+- Markdown canonico;
+- HTML;
+- PDF;
+- EPUB;
+- `publication-manifest.json` con hash SHA-256.
+
+Gli output vengono salvati per impostazione predefinita in:
+
+```text
+WORKSPACE_PRIVATO/publication/
+```
+
+File precedenti con lo stesso nome vengono conservati mediante backup
+timestampati. PDF ed EPUB vengono validati prima di sostituire gli output
+esistenti.
