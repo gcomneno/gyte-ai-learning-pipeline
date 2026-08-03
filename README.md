@@ -120,3 +120,33 @@ File prodotti nella directory privata:
 - `pipeline-state.json`
 
 Questa fase non scarica ancora caption, audio o video.
+
+## Seconda fase disponibile: prepare
+
+Per impostazione predefinita, dato un URL il comando completa sia `inspect`
+sia `prepare`:
+
+```bash
+gyte-lesson-kindle "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+La fase produce o adotta in modo riavviabile:
+
+- `transcript.raw.txt`
+- `transcript.normalized.txt`
+- `transcript.analysis.txt`
+- `transcript.analysis.md`
+
+Per limitarsi ai metadati:
+
+```bash
+gyte-lesson-kindle --inspect-only URL_YOUTUBE
+```
+
+Per rigenerare gli output della preparazione:
+
+```bash
+gyte-lesson-kindle --force URL_YOUTUBE
+```
+
+Il fallback audio con Whisper non è ancora implementato.
