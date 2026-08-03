@@ -1,4 +1,4 @@
-"""Tests for the initial command-line foundation."""
+"""Tests for the command-line interface."""
 
 from __future__ import annotations
 
@@ -14,11 +14,12 @@ sys.path.insert(0, str(SRC))
 
 from gyte_study_tools import __version__  # noqa: E402
 from gyte_study_tools.cli import REQUIRED_COMMANDS, build_parser  # noqa: E402
+from gyte_study_tools.inspection import DEFAULT_WORK_ROOT  # noqa: E402
 
 
-class CliFoundationTests(unittest.TestCase):
+class CliTests(unittest.TestCase):
     def test_development_version_is_exposed(self) -> None:
-        self.assertEqual(__version__, "0.1.0-dev")
+        self.assertEqual(__version__, "0.2.0-dev")
 
     def test_check_option_is_parsed(self) -> None:
         args = build_parser().parse_args(["--check"])
@@ -32,6 +33,14 @@ class CliFoundationTests(unittest.TestCase):
 
         self.assertEqual(args.url, url)
         self.assertFalse(args.check)
+        self.assertEqual(args.work_root, DEFAULT_WORK_ROOT)
+
+    def test_custom_work_root_is_parsed(self) -> None:
+        args = build_parser().parse_args(
+            ["--work-root", "/tmp/gyte-study", "https://youtu.be/example"]
+        )
+
+        self.assertEqual(args.work_root, Path("/tmp/gyte-study"))
 
     def test_expected_external_commands_are_declared(self) -> None:
         self.assertIn("gyte-transcript", REQUIRED_COMMANDS)

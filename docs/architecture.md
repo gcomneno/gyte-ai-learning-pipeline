@@ -92,3 +92,14 @@ La versione iniziale usa esclusivamente:
 - Poppler.
 
 Non richiede Pandoc, WeasyPrint o wkhtmltopdf.
+
+## Implementazione corrente
+
+La fase `inspect` è disponibile e:
+
+- interroga `yt-dlp` senza scaricare contenuti multimediali;
+- raccoglie metadati e lingue delle caption;
+- preferisce `it-orig`, poi `it`;
+- distingue caption manuali e automatiche;
+- crea un workspace privato stabile;
+- registra lo stato della fase in forma JSON.
