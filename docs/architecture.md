@@ -103,3 +103,17 @@ La fase `inspect` è disponibile e:
 - distingue caption manuali e automatiche;
 - crea un workspace privato stabile;
 - registra lo stato della fase in forma JSON.
+
+### Fase prepare
+
+La fase `prepare`:
+
+- riutilizza un transcript caption già presente;
+- invoca `gyte-transcript` solo quando necessario;
+- conserva una copia stabile del testo originale;
+- normalizza le entità HTML;
+- esegue il reflow AI-friendly;
+- verifica che il reflow non perda parole;
+- genera il Markdown da caricare per la revisione editoriale;
+- adotta senza riscriverli output completi già esistenti;
+- registra le fasi `transcribe` e `prepare` nel file di stato.

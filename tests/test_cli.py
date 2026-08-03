@@ -19,7 +19,7 @@ from gyte_study_tools.inspection import DEFAULT_WORK_ROOT  # noqa: E402
 
 class CliTests(unittest.TestCase):
     def test_development_version_is_exposed(self) -> None:
-        self.assertEqual(__version__, "0.2.0-dev")
+        self.assertEqual(__version__, "0.3.0-dev")
 
     def test_check_option_is_parsed(self) -> None:
         args = build_parser().parse_args(["--check"])
@@ -33,7 +33,29 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(args.url, url)
         self.assertFalse(args.check)
+        self.assertFalse(args.inspect_only)
+        self.assertFalse(args.force)
         self.assertEqual(args.work_root, DEFAULT_WORK_ROOT)
+
+    def test_inspect_only_is_parsed(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--inspect-only",
+                "https://www.youtube.com/watch?v=example",
+            ]
+        )
+
+        self.assertTrue(args.inspect_only)
+
+    def test_force_is_parsed(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--force",
+                "https://www.youtube.com/watch?v=example",
+            ]
+        )
+
+        self.assertTrue(args.force)
 
     def test_custom_work_root_is_parsed(self) -> None:
         args = build_parser().parse_args(

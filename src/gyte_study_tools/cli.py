@@ -16,6 +16,11 @@ from gyte_study_tools.inspection import (
     InspectionResult,
     inspect_video,
 )
+from gyte_study_tools.preparation import (
+    PreparationError,
+    PreparationResult,
+    prepare_transcript,
+)
 
 
 REQUIRED_COMMANDS: tuple[str, ...] = (
@@ -47,6 +52,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Verifica la disponibilità dei prerequisiti locali.",
     )
     parser.add_argument(
+        "--inspect-only",
+        action="store_true",
+        help="Completa soltanto la fase di ispezione.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Rigenera gli output della fase prepare.",
+    )
+    parser.add_argument(
         "--work-root",
         type=Path,
         default=DEFAULT_WORK_ROOT,
@@ -58,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--json",
         action="store_true",
-        help="Stampa il risultato dell'ispezione in JSON.",
+        help="Stampa il risultato in JSON.",
     )
     parser.add_argument(
         "--version",
@@ -132,6 +147,49 @@ def print_inspection(result: InspectionResult) -> None:
     print("ESITO: fase inspect completata.")
 
 
+def print_preparation(result: PreparationResult) -> None:
+    print()
+    print("===== PREPARAZIONE TRANSCRIPT =====")
+    print(f"Sorgente:       {result.source_transcript_path.name}")
+    print(f"Modalità:       {result.source_mode}")
+    print(f"Output riusati: {'sì' if result.reused else 'no'}")
+    print(f"Parole raw:     {result.raw_words}")
+    print(f"Parole norm.:   {result.normalized_words}")
+    print(f"Parole analysis:{result.analysis_words}")
+    print()
+    print("File da caricare in chat:")
+    print(result.analysis_markdown_path)
+    print()
+    print("ESITO: fase prepare completata.")
+
+
+def inspection_to_dict(result: InspectionResult) -> dict[str, object]:
+    return {
+        "workdir": str(result.workdir),
+        "metadata_path": str(result.metadata_path),
+        "state_path": str(result.state_path),
+        "record": result.record,
+    }
+
+
+def preparation_to_dict(result: PreparationResult) -> dict[str, object]:
+    return {
+        "workdir": str(result.workdir),
+        "source_transcript_path": str(result.source_transcript_path),
+        "raw_path": str(result.raw_path),
+        "normalized_path": str(result.normalized_path),
+        "analysis_text_path": str(result.analysis_text_path),
+        "analysis_markdown_path": str(result.analysis_markdown_path),
+        "word_counts": {
+            "raw": result.raw_words,
+            "normalized": result.normalized_words,
+            "analysis": result.analysis_words,
+        },
+        "source_mode": result.source_mode,
+        "reused": result.reused,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -141,26 +199,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("--check non può essere combinato con URL.")
         return check_environment()
 
+    if args.inspect_only and args.force:
+        parser.error("--force non è applicabile con --inspect-only.")
+
     if not args.url:
         parser.print_help()
         return 0
 
     try:
-        result = inspect_video(args.url, args.work_root)
-    except (InspectionError, OSError) as error:
+        inspection = inspect_video(args.url, args.work_root)
+        preparation = (
+            None
+            if args.inspect_only
+            else prepare_transcript(
+                inspection.workdir,
+                force=args.force,
+            )
+        )
+    except (
+        InspectionError,
+        PreparationError,
+        OSError,
+    ) as error:
         print(f"ERRORE: {error}", file=sys.stderr)
         return 1
 
     if args.json:
-        output = {
-            "workdir": str(result.workdir),
-            "metadata_path": str(result.metadata_path),
-            "state_path": str(result.state_path),
-            "record": result.record,
+        output: dict[str, object] = {
+            "inspection": inspection_to_dict(inspection),
         }
+
+        if preparation is not None:
+            output["preparation"] = preparation_to_dict(preparation)
+
         print(json.dumps(output, ensure_ascii=False, indent=2))
     else:
-        print_inspection(result)
+        print_inspection(inspection)
+
+        if preparation is not None:
+            print_preparation(preparation)
 
     return 0
 
