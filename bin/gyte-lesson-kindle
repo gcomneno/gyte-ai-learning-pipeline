@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+SOURCE_PATH="${BASH_SOURCE[0]}"
+REAL_SOURCE="$(readlink -f "$SOURCE_PATH" 2>/dev/null || printf '%s' "$SOURCE_PATH")"
+SCRIPT_DIR="$(cd "$(dirname "$REAL_SOURCE")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ -n "${PYTHONPATH:-}" ]; then
+    export PYTHONPATH="$PROJECT_ROOT/src:$PYTHONPATH"
+else
+    export PYTHONPATH="$PROJECT_ROOT/src"
+fi
+
+exec python3 -m gyte_study_tools.cli "$@"
