@@ -103,3 +103,20 @@ L'installer crea il collegamento:
 - passaggi verificabili;
 - degrado controllato da caption a Whisper;
 - nessuna dipendenza obbligatoria da servizi AI nella versione assistita.
+
+## Prima fase disponibile: inspect
+
+Dato un URL YouTube, il comando recupera i metadati, individua le caption
+preferibili e prepara una directory privata riavviabile:
+
+```bash
+gyte-lesson-kindle "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+File prodotti nella directory privata:
+
+- `source-url.txt`
+- `metadata.json`
+- `pipeline-state.json`
+
+Questa fase non scarica ancora caption, audio o video.
