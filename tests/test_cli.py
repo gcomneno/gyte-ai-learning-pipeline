@@ -20,7 +20,7 @@ from gyte_study_tools.publishing import DEFAULT_AUTHOR  # noqa: E402
 
 class CliTests(unittest.TestCase):
     def test_development_version_is_exposed(self) -> None:
-        self.assertEqual(__version__, "0.4.0")
+        self.assertEqual(__version__, "0.5.0-dev")
 
     def test_check_option_is_parsed(self) -> None:
         args = build_parser().parse_args(["--check"])

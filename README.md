@@ -200,3 +200,23 @@ Note complete:
 
 - `CHANGELOG.md`
 - `docs/release-notes-v0.4.0.md`
+
+## Ingresso articoli
+
+Il comando riconosce automaticamente gli URL non YouTube come articoli:
+
+```bash
+gyte-lesson-kindle "URL_ARTICOLO"
+```
+
+La fase genera:
+
+- `article.raw.html`;
+- `article.extracted.md`;
+- `article.analysis.md`;
+- `metadata.json`;
+- `pipeline-state.json`.
+
+Il dossier separa il contenuto giornalistico dai riferimenti scientifici
+rilevati e include un protocollo per distinguere affermazioni della fonte,
+risultati primari, inferenze e fatti ancora da verificare.
