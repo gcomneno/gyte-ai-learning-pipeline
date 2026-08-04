@@ -68,6 +68,19 @@ Sono conservati esternamente al repository:
    - controllo del testo recuperabile;
    - riepilogo finale.
 
+7. `delivery`
+   - transizione locale **prepare** solo dopo `publish` completo e manifest
+     valido;
+   - verifica di hash e dimensione EPUB, quindi copia indipendente atomica in
+     `delivery/outbox/` (mai hard link);
+   - richiesta `kindle-delivery-request.json` con stato `pending`,
+     `handoff_mode=external-file-transfer` e
+     `handoff_status=awaiting-transfer`;
+   - trasferimento/upload dell'allegato locale nell'ambiente accessibile al
+     Gmail connector, poi invio esterno;
+   - transizione locale **record receipt** che salva la ricevuta e aggiorna
+     lo stato a `complete` con `handoff_status=connector-sent`.
+
 ## Stato riavviabile
 
 Ogni fase dovrà produrre un file di stato o output riconoscibile.
@@ -132,6 +145,31 @@ La fase `publish`:
 - conserva gli output precedenti con backup timestampati;
 - genera un manifest con hash SHA-256;
 - registra la pubblicazione nello stato della pipeline.
+
+### Fase delivery
+
+La consegna Kindle mantiene esplicito il confine tra filesystem privato e
+connector esterno. `--kindle-email` può essere usato insieme a
+`--publish-from`: non invia email, ma prepara una richiesta verificabile
+contenente destinatario, oggetto, hash, dimensione e percorso dell'EPUB.
+Il flusso è `prepare locale -> transfer/upload attachment -> Gmail connector
+send -> local receipt`. Il percorso dell'outbox è locale al workspace e non è
+automaticamente leggibile dal connector: `attachment_path` può essere usato
+direttamente solo con filesystem condiviso; altrimenti utente o orchestratore
+devono trasferire il file. SHA-256 e dimensione identificano l'artefatto da
+trasferire. Il connector Gmail restituisce una ricevuta dell'invio Gmail.
+`--record-kindle-delivery RECEIPT URL` risolve il workspace dai metadati
+locali e registra tale ricevuta in modo atomico. Non esistono OAuth, SMTP,
+token o configurazioni Gmail nel repository.
+
+L'EPUB nell'outbox è sempre una copia con inode distinto dall'artefatto
+pubblicato: le due versioni non condividono contenuto modificabile. Prima di
+registrare una ricevuta, il contratto JSON, il percorso confinato nell'outbox,
+dimensione, SHA-256 e struttura EPUB della richiesta `pending` vengono tutti
+riverificati. Una richiesta `sent` mantiene gli stessi campi strutturali e la
+stessa ricevuta idempotente; il suo allegato può essere rimosso dopo il
+completamento. La ricevuta non prova la ricezione, la consegna o la conversione
+finale sul dispositivo Kindle.
 
 ### Ingresso article
 

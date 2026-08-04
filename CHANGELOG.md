@@ -9,6 +9,14 @@ Il progetto segue il versionamento semantico.
 
 ### Aggiunto
 
+- handoff Kindle a due transizioni: richiesta locale pending e registrazione
+  locale della ricevuta del Gmail connector;
+- contratto di handoff esplicito: `external-file-transfer`, con trasferimento
+  o upload dell'allegato prima dell'invio Gmail e ricevuta locale che attesta
+  solo l'invio dal connector;
+- validazione restrittiva dei domini Kindle, hash SHA-256 e copia outbox
+  atomica e indipendente;
+- stato `stages.delivery` riavviabile e testabile senza invio di email;
 - rilevamento automatico tra sorgenti YouTube e articoli;
 - ingestione di articoli HTML;
 - estrazione dei contenitori Blogger `post-body` ed `entry-content`;

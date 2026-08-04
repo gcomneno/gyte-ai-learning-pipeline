@@ -13,7 +13,7 @@ SRC = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC))
 
 from gyte_study_tools import __version__  # noqa: E402
-from gyte_study_tools.cli import REQUIRED_COMMANDS, build_parser  # noqa: E402
+from gyte_study_tools.cli import REQUIRED_COMMANDS, build_parser, main  # noqa: E402
 from gyte_study_tools.inspection import DEFAULT_WORK_ROOT  # noqa: E402
 from gyte_study_tools.publishing import DEFAULT_AUTHOR  # noqa: E402
 
@@ -56,6 +56,53 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.publish_from, Path("/tmp/lesson.md"))
         self.assertEqual(args.output_dir, Path("/tmp/publication"))
         self.assertEqual(args.author, "Autore di prova")
+
+    def test_kindle_delivery_options_are_parsed(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--publish-from",
+                "/tmp/lesson.md",
+                "--kindle-email",
+                "reader@kindle.com",
+                "https://www.youtube.com/watch?v=example",
+            ]
+        )
+
+        self.assertEqual(args.kindle_email, "reader@kindle.com")
+        self.assertIsNone(args.record_kindle_delivery)
+
+    def test_record_delivery_option_is_parsed(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--record-kindle-delivery",
+                "gmail-message-123",
+                "https://www.youtube.com/watch?v=example",
+            ]
+        )
+
+        self.assertEqual(args.record_kindle_delivery, "gmail-message-123")
+
+    def test_kindle_email_requires_publish_from(self) -> None:
+        with self.assertRaises(SystemExit):
+            main(
+                [
+                    "--kindle-email",
+                    "reader@kindle.com",
+                    "https://www.youtube.com/watch?v=example",
+                ]
+            )
+
+    def test_record_delivery_rejects_publish_options(self) -> None:
+        with self.assertRaises(SystemExit):
+            main(
+                [
+                    "--record-kindle-delivery",
+                    "gmail-message-123",
+                    "--publish-from",
+                    "/tmp/lesson.md",
+                    "https://www.youtube.com/watch?v=example",
+                ]
+            )
 
     def test_inspect_only_is_parsed(self) -> None:
         args = build_parser().parse_args(

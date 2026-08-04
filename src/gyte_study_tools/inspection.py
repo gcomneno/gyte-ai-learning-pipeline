@@ -6,6 +6,8 @@ import json
 import re
 import shutil
 import subprocess
+import os
+import tempfile
 import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -168,9 +170,24 @@ def choose_workdir(root: Path, title: str, video_id: str) -> Path:
 
 
 def atomic_write_text(path: Path, content: str) -> None:
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(content, encoding="utf-8")
-    temporary.replace(path)
+    """Atomically replace a text file without a predictable temporary name."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def load_state(path: Path) -> dict[str, Any]:

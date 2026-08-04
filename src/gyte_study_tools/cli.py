@@ -15,6 +15,14 @@ from gyte_study_tools.articles import (
     ArticleResult,
     ingest_article,
 )
+from gyte_study_tools.delivery import (
+    DeliveryError,
+    DeliveryResult,
+    prepare_kindle_delivery,
+    record_kindle_delivery,
+    request_summary,
+    resolve_workspace,
+)
 from gyte_study_tools.inspection import (
     DEFAULT_WORK_ROOT,
     InspectionError,
@@ -81,6 +89,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--publish-from",
         type=Path,
         help="Pubblica una Lesson Learned Markdown revisionata.",
+    )
+    parser.add_argument(
+        "--kindle-email",
+        help=(
+            "Prepara una richiesta pending per un indirizzo "
+            "@kindle.com o @free.kindle.com dopo --publish-from."
+        ),
+    )
+    parser.add_argument(
+        "--record-kindle-delivery",
+        metavar="RECEIPT",
+        help=(
+            "Registra localmente la ricevuta del Gmail connector per "
+            "l'URL e il workspace esistenti."
+        ),
     )
     parser.add_argument(
         "--author",
@@ -252,6 +275,33 @@ def print_publication(result: PublicationResult) -> None:
     print("ESITO: fase publish completata.")
 
 
+def print_delivery(result: DeliveryResult) -> None:
+    request = result.request
+    heading = (
+        "===== RICEVUTA CONSEGNA KINDLE ====="
+        if request["status"] == "sent"
+        else "===== RICHIESTA CONSEGNA KINDLE ====="
+    )
+    print()
+    print(heading)
+    print(f"Stato:       {request['status']}")
+    print(f"Handoff:     {request['handoff_mode']} / {request['handoff_status']}")
+    print(f"Richiesta:   {request['request_id']}")
+    print(f"Destinatario: {request['recipient']}")
+    print(f"Oggetto:     {request['subject']}")
+    print(f"Allegato:    {request['attachment_path']}")
+    print(f"Richiesta JSON: {result.request_path}")
+    if request["status"] == "pending":
+        print(
+            "Azione esterna: trasferire o caricare l'EPUB nell'ambiente "
+            "accessibile al Gmail connector, quindi inviarlo e registrare la ricevuta."
+        )
+        print("Il percorso mostrato è locale al workspace e non è automaticamente leggibile dal connector.")
+    else:
+        print(f"Ricevuta:    {request['receipt']}")
+        print("ESITO: invio Gmail registrato; non attesta la consegna o conversione su Kindle.")
+
+
 def inspection_to_dict(result: InspectionResult) -> dict[str, object]:
     return {
         "workdir": str(result.workdir),
@@ -328,6 +378,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("--check non può essere combinato con URL.")
         return check_environment()
 
+    if args.record_kindle_delivery is not None:
+        if args.publish_from or args.kindle_email or args.output_dir:
+            parser.error(
+                "--record-kindle-delivery non può essere combinato con opzioni publish o delivery."
+            )
+        if args.inspect_only or args.force:
+            parser.error("--record-kindle-delivery non usa --inspect-only o --force.")
+        if not args.url:
+            parser.error("--record-kindle-delivery richiede l'URL della sorgente.")
+        try:
+            delivery = record_kindle_delivery(
+                resolve_workspace(args.url, args.work_root),
+                args.record_kindle_delivery,
+            )
+        except (DeliveryError, OSError) as error:
+            print(f"ERRORE: {error}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps({"delivery": request_summary(delivery)}, ensure_ascii=False, indent=2))
+        else:
+            print_delivery(delivery)
+        return 0
+
     if args.inspect_only and args.force:
         parser.error("--force non è applicabile con --inspect-only.")
 
@@ -339,6 +412,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.output_dir and not args.publish_from:
         parser.error("--output-dir richiede --publish-from.")
 
+    if args.kindle_email and not args.publish_from:
+        parser.error("--kindle-email richiede --publish-from.")
+
     if not args.url:
         parser.print_help()
         return 0
@@ -346,6 +422,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         source_type = detect_source_type(args.url)
         publication: PublicationResult | None = None
+        delivery: DeliveryResult | None = None
 
         if source_type == "youtube":
             inspection = inspect_video(args.url, args.work_root)
@@ -377,6 +454,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 author=args.author,
                 output_dir=args.output_dir,
             )
+            if args.kindle_email:
+                delivery = prepare_kindle_delivery(
+                    workdir,
+                    args.kindle_email,
+                )
 
     except (
         SourceDetectionError,
@@ -384,6 +466,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         PreparationError,
         ArticleError,
         PublicationError,
+        DeliveryError,
         OSError,
     ) as error:
         print(f"ERRORE: {error}", file=sys.stderr)
@@ -406,6 +489,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if publication is not None:
             output["publication"] = publication_to_dict(publication)
 
+        if delivery is not None:
+            output["delivery"] = request_summary(delivery)
+
         print(json.dumps(output, ensure_ascii=False, indent=2))
     else:
         if inspection is not None:
@@ -419,6 +505,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if publication is not None:
             print_publication(publication)
+
+        if delivery is not None:
+            print_delivery(delivery)
 
     return 0
 
