@@ -10,6 +10,11 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from gyte_study_tools import __version__
+from gyte_study_tools.articles import (
+    ArticleError,
+    ArticleResult,
+    ingest_article,
+)
 from gyte_study_tools.inspection import (
     DEFAULT_WORK_ROOT,
     InspectionError,
@@ -26,6 +31,10 @@ from gyte_study_tools.publishing import (
     PublicationError,
     PublicationResult,
     publish_lesson,
+)
+from gyte_study_tools.sources import (
+    SourceDetectionError,
+    detect_source_type,
 )
 
 
@@ -44,13 +53,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gyte-lesson-kindle",
         description=(
-            "Trasforma un video YouTube in materiale di studio, PDF ed EPUB."
+            "Trasforma video YouTube e articoli in materiale di studio, "
+            "PDF ed EPUB."
         ),
     )
     parser.add_argument(
         "url",
         nargs="?",
-        help="URL del video YouTube da elaborare.",
+        help="URL YouTube o URL di un articolo.",
     )
     parser.add_argument(
         "--check",
@@ -60,20 +70,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--inspect-only",
         action="store_true",
-        help="Completa soltanto la fase di ispezione.",
+        help="Completa soltanto l'ispezione della sorgente.",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Rigenera gli output della fase prepare.",
+        help="Rigenera gli output preparatori.",
     )
     parser.add_argument(
         "--publish-from",
         type=Path,
-        help=(
-            "Pubblica una Lesson Learned Markdown revisionata "
-            "dopo inspect e prepare."
-        ),
+        help="Pubblica una Lesson Learned Markdown revisionata.",
     )
     parser.add_argument(
         "--author",
@@ -138,8 +145,7 @@ def check_environment() -> int:
 def print_inspection(result: InspectionResult) -> None:
     record = result.record
     video = record["video"]
-    captions = record["captions"]
-    selected = captions["selected"]
+    selected = record["captions"]["selected"]
 
     print("===== ISPEZIONE VIDEO =====")
     print(f"Titolo:              {video['title']}")
@@ -158,7 +164,7 @@ def print_inspection(result: InspectionResult) -> None:
         print("Caption selezionata: nessuna")
         print("Fallback richiesto:  trascrizione audio")
     else:
-        formats = ", ".join(selected["formats"]) or "formato non dichiarato"
+        formats = ", ".join(selected["formats"]) or "non dichiarato"
         print(
             "Caption selezionata: "
             f"{selected['language']} ({selected['source']}; {formats})"
@@ -190,28 +196,58 @@ def print_preparation(result: PreparationResult) -> None:
     print("ESITO: fase prepare completata.")
 
 
+def print_article(result: ArticleResult) -> None:
+    article = result.record["article"]
+    references = result.record["scientific_references"]
+
+    print("===== INGESTIONE ARTICOLO =====")
+    print(f"Titolo:       {article['title']}")
+    print(
+        "Testata/sito: "
+        f"{article.get('site_name') or result.record['source']['domain']}"
+    )
+    print(
+        "Autore:       "
+        f"{article.get('author') or '<non disponibile>'}"
+    )
+    print(
+        "Pubblicato:   "
+        f"{article.get('published_at') or '<non disponibile>'}"
+    )
+    print(f"Parole:       {result.content_words}")
+    print(f"Riferimenti:  {len(references)}")
+    print(f"Output riusati: {'sì' if result.reused else 'no'}")
+    print()
+    print("===== WORKSPACE PRIVATO =====")
+    print(f"Directory: {result.workdir}")
+    print(f"Metadati:  {result.metadata_path}")
+    print(f"HTML raw:  {result.raw_html_path}")
+    print(f"Stato:     {result.state_path}")
+
+    if result.analysis_markdown_path is not None:
+        print()
+        print("File da caricare in chat:")
+        print(result.analysis_markdown_path)
+        print()
+        print("ESITO: articolo estratto e preparato.")
+    else:
+        print()
+        print("ESITO: ispezione articolo completata.")
+
+
 def print_publication(result: PublicationResult) -> None:
     print()
     print("===== PUBBLICAZIONE LESSON LEARNED =====")
-    print(f"Titolo:         {result.title}")
-    print(f"Autore:         {result.author}")
-    print(f"Parole sorgente:{result.metrics.source_words}")
-    print(f"Parole PDF:     {result.metrics.pdf_words}")
-    print(f"Parole EPUB:    {result.metrics.epub_words}")
-    print(f"Markdown:       {result.canonical_markdown_path}")
-    print(f"HTML:           {result.html_path}")
-    print(f"PDF:            {result.pdf_path}")
-    print(f"EPUB:           {result.epub_path}")
-    print(f"Manifest:       {result.manifest_path}")
-
-    if result.backups:
-        print("Backup creati:")
-
-        for original, backup in result.backups.items():
-            print(f"  {original} -> {backup}")
-    else:
-        print("Backup creati:  nessuno")
-
+    print(f"Titolo:          {result.title}")
+    print(f"Autore:          {result.author}")
+    print(f"Parole sorgente: {result.metrics.source_words}")
+    print(f"Parole PDF:      {result.metrics.pdf_words}")
+    print(f"Parole EPUB:     {result.metrics.epub_words}")
+    print(f"Markdown:        {result.canonical_markdown_path}")
+    print(f"HTML:            {result.html_path}")
+    print(f"PDF:             {result.pdf_path}")
+    print(f"EPUB:            {result.epub_path}")
+    print(f"Manifest:        {result.manifest_path}")
     print()
     print("ESITO: fase publish completata.")
 
@@ -228,11 +264,9 @@ def inspection_to_dict(result: InspectionResult) -> dict[str, object]:
 def preparation_to_dict(result: PreparationResult) -> dict[str, object]:
     return {
         "workdir": str(result.workdir),
-        "source_transcript_path": str(result.source_transcript_path),
-        "raw_path": str(result.raw_path),
-        "normalized_path": str(result.normalized_path),
-        "analysis_text_path": str(result.analysis_text_path),
-        "analysis_markdown_path": str(result.analysis_markdown_path),
+        "analysis_markdown_path": str(
+            result.analysis_markdown_path
+        ),
         "word_counts": {
             "raw": result.raw_words,
             "normalized": result.normalized_words,
@@ -243,11 +277,32 @@ def preparation_to_dict(result: PreparationResult) -> dict[str, object]:
     }
 
 
+def article_to_dict(result: ArticleResult) -> dict[str, object]:
+    return {
+        "workdir": str(result.workdir),
+        "metadata_path": str(result.metadata_path),
+        "state_path": str(result.state_path),
+        "raw_html_path": str(result.raw_html_path),
+        "extracted_markdown_path": (
+            str(result.extracted_markdown_path)
+            if result.extracted_markdown_path is not None
+            else None
+        ),
+        "analysis_markdown_path": (
+            str(result.analysis_markdown_path)
+            if result.analysis_markdown_path is not None
+            else None
+        ),
+        "content_words": result.content_words,
+        "reused": result.reused,
+        "record": result.record,
+    }
+
+
 def publication_to_dict(result: PublicationResult) -> dict[str, object]:
     return {
         "title": result.title,
         "author": result.author,
-        "source_path": str(result.source_path),
         "canonical_markdown_path": str(
             result.canonical_markdown_path
         ),
@@ -289,28 +344,45 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     try:
-        inspection = inspect_video(args.url, args.work_root)
-        preparation = (
-            None
-            if args.inspect_only
-            else prepare_transcript(
-                inspection.workdir,
-                force=args.force,
+        source_type = detect_source_type(args.url)
+        publication: PublicationResult | None = None
+
+        if source_type == "youtube":
+            inspection = inspect_video(args.url, args.work_root)
+            preparation = (
+                None
+                if args.inspect_only
+                else prepare_transcript(
+                    inspection.workdir,
+                    force=args.force,
+                )
             )
-        )
-        publication = (
-            publish_lesson(
-                workdir=inspection.workdir,
+            article = None
+            workdir = inspection.workdir
+        else:
+            article = ingest_article(
+                url=args.url,
+                work_root=args.work_root,
+                force=args.force,
+                inspect_only=args.inspect_only,
+            )
+            inspection = None
+            preparation = None
+            workdir = article.workdir
+
+        if args.publish_from is not None:
+            publication = publish_lesson(
+                workdir=workdir,
                 source_path=args.publish_from,
                 author=args.author,
                 output_dir=args.output_dir,
             )
-            if args.publish_from is not None
-            else None
-        )
+
     except (
+        SourceDetectionError,
         InspectionError,
         PreparationError,
+        ArticleError,
         PublicationError,
         OSError,
     ) as error:
@@ -319,21 +391,31 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.json:
         output: dict[str, object] = {
-            "inspection": inspection_to_dict(inspection),
+            "source_type": source_type,
         }
+
+        if inspection is not None:
+            output["inspection"] = inspection_to_dict(inspection)
 
         if preparation is not None:
             output["preparation"] = preparation_to_dict(preparation)
+
+        if article is not None:
+            output["article"] = article_to_dict(article)
 
         if publication is not None:
             output["publication"] = publication_to_dict(publication)
 
         print(json.dumps(output, ensure_ascii=False, indent=2))
     else:
-        print_inspection(inspection)
+        if inspection is not None:
+            print_inspection(inspection)
 
         if preparation is not None:
             print_preparation(preparation)
+
+        if article is not None:
+            print_article(article)
 
         if publication is not None:
             print_publication(publication)

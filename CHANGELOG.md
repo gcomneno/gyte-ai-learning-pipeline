@@ -5,6 +5,18 @@ in questo file.
 
 Il progetto segue il versionamento semantico.
 
+## [Unreleased]
+
+### Aggiunto
+
+- rilevamento automatico tra sorgenti YouTube e articoli;
+- ingestione di articoli HTML;
+- estrazione dei contenitori Blogger `post-body` ed `entry-content`;
+- lettura di metadati Open Graph e JSON-LD;
+- dossier `article.analysis.md`;
+- registrazione separata dei riferimenti scientifici;
+- protocollo esplicito per distinguere fonte, evidenza e inferenza.
+
 ## [0.4.0] - 2026-08-03
 
 Prima release assistita completa.

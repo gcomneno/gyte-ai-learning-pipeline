@@ -132,3 +132,15 @@ La fase `publish`:
 - conserva gli output precedenti con backup timestampati;
 - genera un manifest con hash SHA-256;
 - registra la pubblicazione nello stato della pipeline.
+
+### Ingresso article
+
+Gli URL HTTP non riconosciuti come YouTube seguono una pipeline distinta:
+
+1. download HTML con user agent dichiarato;
+2. lettura dei metadati Open Graph e JSON-LD;
+3. estrazione del contenitore `post-body` o `entry-content`;
+4. esclusione del boilerplate della pagina;
+5. registrazione separata dei riferimenti scientifici;
+6. produzione di `article.analysis.md`;
+7. successiva revisione editoriale e pubblicazione condivisa.
