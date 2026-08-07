@@ -27,11 +27,16 @@ Orchestra il workflow didattico ed editoriale:
 
 ### Materiali privati
 
-Sono conservati esternamente al repository:
+Sono conservati esternamente al repository.
+
+Directory predefinita:
 
 ```text
-/home/baltimora/Progetti/labs/gyte-study-private-material
+~/.local/share/gyte-study-private-material
 ```
+
+Il percorso può essere sostituito tramite `--work-root` o
+`GYTE_STUDY_WORK_ROOT`.
 
 ## Fasi previste
 

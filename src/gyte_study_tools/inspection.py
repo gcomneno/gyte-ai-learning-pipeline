@@ -16,8 +16,16 @@ from typing import Any
 
 
 DEFAULT_WORK_ROOT = Path(
-    "/home/baltimora/Progetti/labs/gyte-study-private-material"
-)
+    os.environ.get(
+        "GYTE_STUDY_WORK_ROOT",
+        str(
+            Path.home()
+            / ".local"
+            / "share"
+            / "gyte-study-private-material"
+        ),
+    )
+).expanduser()
 PREFERRED_CAPTION_LANGUAGES: tuple[str, ...] = ("it-orig", "it")
 
 
