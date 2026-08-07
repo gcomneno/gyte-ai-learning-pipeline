@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,7 @@ from gyte_study_tools.inspection import inspect_video  # noqa: E402
 from gyte_study_tools.preparation import (  # noqa: E402
     PreparationError,
     prepare_transcript,
+    run_gyte_transcript,
 )
 
 
@@ -122,6 +124,39 @@ class PreparationTests(unittest.TestCase):
                 reused.source_mode,
                 "adopted-existing",
             )
+
+    def test_transcript_success_without_output_preserves_diagnostic(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir = Path(temporary)
+
+            completed = subprocess.CompletedProcess(
+                args=["gyte-transcript"],
+                returncode=0,
+                stdout="",
+                stderr="download non riuscito: HTTP 429",
+            )
+
+            with (
+                patch(
+                    "gyte_study_tools.preparation.shutil.which",
+                    return_value="/usr/bin/gyte-transcript",
+                ),
+                patch(
+                    "gyte_study_tools.preparation.subprocess.run",
+                    return_value=completed,
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    PreparationError,
+                    "HTTP 429",
+                ):
+                    run_gyte_transcript(
+                        "https://www.youtube.com/watch?v=fixture",
+                        workdir,
+                        "it",
+                    )
 
     def test_prepare_rejects_missing_caption_and_transcript(self) -> None:
         metadata = dict(self.metadata)
