@@ -112,7 +112,7 @@ def run_gyte_transcript(
     url: str,
     workdir: Path,
     language: str,
-) -> None:
+) -> Path:
     executable = shutil.which("gyte-transcript")
 
     if executable is None:
@@ -136,12 +136,24 @@ def run_gyte_transcript(
         env=environment,
     )
 
+    detail = completed.stderr.strip() or completed.stdout.strip()
+
     if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip()
         raise PreparationError(
             "gyte-transcript non ha completato l'estrazione."
             + (f" Dettaglio: {detail}" if detail else "")
         )
+
+    transcript_path = locate_caption_transcript(workdir, language)
+
+    if transcript_path is None:
+        raise PreparationError(
+            "gyte-transcript è terminato senza produrre "
+            f"un transcript utilizzabile per la lingua '{language}'."
+            + (f" Dettaglio: {detail}" if detail else "")
+        )
+
+    return transcript_path
 
 
 def run_reflow(source: Path, destination: Path) -> None:
@@ -391,8 +403,8 @@ def prepare_transcript(
         if source_transcript_path is not None:
             source_mode = "existing-caption"
         else:
-            run_gyte_transcript(url, workdir, language)
-            source_transcript_path = locate_caption_transcript(
+            source_transcript_path = run_gyte_transcript(
+                url,
                 workdir,
                 language,
             )
