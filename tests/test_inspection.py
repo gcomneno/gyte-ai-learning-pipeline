@@ -53,6 +53,45 @@ class InspectionTests(unittest.TestCase):
             ("json3", "srt", "vtt"),
         )
 
+    def test_original_language_beats_automatic_translation(self) -> None:
+        metadata = {
+            "subtitles": {},
+            "automatic_captions": {
+                "en": [{"ext": "vtt"}],
+                "en-orig": [
+                    {"ext": "vtt"},
+                    {"ext": "json3"},
+                ],
+                "it": [{"ext": "vtt"}],
+            },
+        }
+
+        selected = choose_caption(metadata)
+
+        self.assertIsNotNone(selected)
+        assert selected is not None
+        self.assertEqual(selected.language, "en-orig")
+        self.assertEqual(selected.source, "automatic")
+        self.assertEqual(selected.formats, ("json3", "vtt"))
+
+    def test_manual_original_language_beats_automatic_original(self) -> None:
+        metadata = {
+            "subtitles": {
+                "en": [{"ext": "vtt"}],
+            },
+            "automatic_captions": {
+                "en-orig": [{"ext": "vtt"}],
+                "it": [{"ext": "vtt"}],
+            },
+        }
+
+        selected = choose_caption(metadata)
+
+        self.assertIsNotNone(selected)
+        assert selected is not None
+        self.assertEqual(selected.language, "en")
+        self.assertEqual(selected.source, "manual")
+
     def test_inspect_video_writes_restartable_workspace(self) -> None:
         url = "https://www.youtube.com/watch?v=bWPJ-hn9Xrw"
 

@@ -93,13 +93,21 @@ def locate_caption_transcript(
     workdir: Path,
     language: str,
 ) -> Path | None:
-    suffix = f".{language}.txt"
+    languages = [language]
+
+    if language.endswith("-orig"):
+        base_language = language.removesuffix("-orig")
+        if base_language:
+            languages.append(base_language)
+
+    suffixes = tuple(f".{candidate}.txt" for candidate in languages)
     candidates = [
         path
-        for path in workdir.glob(f"*{suffix}")
+        for path in workdir.iterdir()
         if path.name not in STABLE_TRANSCRIPT_NAMES
         and path.is_file()
         and path.stat().st_size > 0
+        and path.name.endswith(suffixes)
     ]
 
     if not candidates:

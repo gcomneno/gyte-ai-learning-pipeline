@@ -20,6 +20,7 @@ sys.path.insert(0, str(SRC))
 from gyte_study_tools.inspection import inspect_video  # noqa: E402
 from gyte_study_tools.preparation import (  # noqa: E402
     PreparationError,
+    locate_caption_transcript,
     prepare_transcript,
     run_gyte_transcript,
 )
@@ -124,6 +125,24 @@ class PreparationTests(unittest.TestCase):
                 reused.source_mode,
                 "adopted-existing",
             )
+
+    def test_original_caption_reuses_base_language_transcript(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir = Path(temporary)
+            source = workdir / "video.en.txt"
+            source.write_text(
+                "Existing English source transcript.\n",
+                encoding="utf-8",
+            )
+
+            located = locate_caption_transcript(
+                workdir,
+                "en-orig",
+            )
+
+            self.assertEqual(located, source)
 
     def test_transcript_success_without_output_preserves_diagnostic(
         self,

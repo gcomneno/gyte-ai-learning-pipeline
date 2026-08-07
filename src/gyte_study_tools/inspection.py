@@ -85,6 +85,31 @@ def choose_caption(metadata: dict[str, Any]) -> CaptionChoice | None:
     manual = manual if isinstance(manual, dict) else {}
     automatic = automatic if isinstance(automatic, dict) else {}
 
+    original_languages = sorted(
+        language
+        for language in automatic
+        if language.endswith("-orig")
+    )
+
+    if len(original_languages) == 1:
+        original_language = original_languages[0]
+        base_language = original_language.removesuffix("-orig")
+
+        if base_language in manual:
+            return CaptionChoice(
+                language=base_language,
+                source="manual",
+                formats=available_formats(manual[base_language]),
+            )
+
+        return CaptionChoice(
+            language=original_language,
+            source="automatic",
+            formats=available_formats(
+                automatic[original_language]
+            ),
+        )
+
     for language in PREFERRED_CAPTION_LANGUAGES:
         if language in manual:
             return CaptionChoice(
