@@ -1,6 +1,6 @@
 # GYTE Study Tools
 
-Companion project di [GYTE](https://github.com/gyte/gyte) per trasformare
+Companion project di [GYTE](https://github.com/gcomneno/gyte) per trasformare
 video e transcript in materiali didattici personali e formati adatti alla
 lettura su Kindle.
 
@@ -29,15 +29,18 @@ YouTube
 
 ## Stato
 
-Fondazione iniziale. La pipeline editoriale non è ancora implementata.
+La pipeline assistita è disponibile per:
 
-La prima versione sarà assistita:
+1. ispezione di video YouTube;
+2. acquisizione e normalizzazione dei transcript;
+3. preparazione del materiale di analisi;
+4. pubblicazione della Lesson Learned validata in Markdown, HTML, PDF ed EPUB;
+5. preparazione riavviabile della consegna Kindle;
+6. ingestione di articoli.
 
-1. automatizza tutte le fasi deterministiche;
-2. prepara `transcript.analysis.md`;
-3. lascia la revisione e la generazione della Lesson Learned a un passaggio
-   editoriale controllato;
-4. genera PDF ed EPUB dalla stessa sorgente Markdown finale.
+La revisione e la generazione della Lesson Learned restano un passaggio
+editoriale controllato. Il fallback audio con Whisper non è ancora
+implementato.
 
 ## Responsabilità
 
@@ -63,8 +66,11 @@ salvati nel repository.
 Directory privata predefinita:
 
 ```text
-/home/baltimora/Progetti/labs/gyte-study-private-material
+~/.local/share/gyte-study-private-material
 ```
+
+Può essere sostituita con `--work-root` oppure impostando
+`GYTE_STUDY_WORK_ROOT`.
 
 ## Prerequisiti locali
 
