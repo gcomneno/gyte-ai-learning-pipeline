@@ -20,7 +20,7 @@ Orchestra il workflow didattico ed editoriale:
 - normalizzazione;
 - validazione;
 - creazione del pacchetto di analisi;
-- generazione della Lesson Learned;
+- pubblicazione della lezione sorgente revisionata;
 - conversione Markdown → PDF;
 - conversione Markdown → EPUB;
 - validazione degli output.
@@ -58,7 +58,7 @@ Il percorso può essere sostituito tramite `--work-root` o
    - generazione di `transcript.analysis.md`.
 
 4. `compose`
-   - versione assistita: attende la Lesson Learned revisionata;
+   - versione assistita: attende la lezione sorgente revisionata;
    - versione completa futura: usa un provider LLM configurabile.
 
 5. `publish`
@@ -140,9 +140,9 @@ La fase `prepare`:
 
 La fase `publish`:
 
-- accetta una Lesson Learned revisionata in Markdown;
+- accetta una lezione sorgente revisionata in Markdown;
 - ricava il titolo dall'H1;
-- normalizza il titolo Kindle;
+- conserva il titolo H1 senza aggiungere etichette;
 - renderizza HTML semantico senza dipendenze Python esterne;
 - genera PDF ed EPUB separatamente tramite Calibre;
 - valida struttura EPUB e testo recuperabile;

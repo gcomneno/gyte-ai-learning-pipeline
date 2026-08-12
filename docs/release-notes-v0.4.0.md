@@ -26,13 +26,13 @@ Dopo la revisione editoriale:
 
 ```bash
 gyte-lesson-kindle \
-  --publish-from "/percorso/Lesson Learned.md" \
+  --publish-from "/percorso/lesson.md" \
   "URL_YOUTUBE"
 ```
 
 La pubblicazione genera dalla stessa sorgente Markdown:
 
-- Markdown canonico;
+- Markdown pubblicato;
 - HTML semantico;
 - PDF;
 - EPUB;
@@ -65,7 +65,7 @@ Risultati:
 
 ## Limitazioni
 
-La versione 0.4.0 è assistita: la Lesson Learned viene ancora composta
+La versione 0.4.0 è assistita: la lezione sorgente viene ancora composta
 e revisionata prima della pubblicazione.
 
 Sviluppi futuri previsti:

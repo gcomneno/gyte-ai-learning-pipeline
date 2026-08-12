@@ -1,4 +1,4 @@
-"""Publish a reviewed Lesson Learned as semantic HTML, PDF and EPUB."""
+"""Publish a reviewed source lesson as semantic HTML, PDF and EPUB."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class ConversionMetrics:
 class PublicationResult:
     workdir: Path
     source_path: Path
-    canonical_markdown_path: Path
+    markdown_path: Path
     html_path: Path
     pdf_path: Path
     epub_path: Path
@@ -90,36 +90,22 @@ def sha256_file(path: Path) -> str:
 
 
 def extract_heading(markdown: str) -> str:
-    for line in markdown.splitlines():
-        match = re.match(r"^#\s+(.+?)\s*$", line)
+    headings = [
+        match.group(1).strip()
+        for line in markdown.splitlines()
+        if (match := re.match(r"^#\s+(.+?)\s*$", line))
+    ]
 
-        if match:
-            return match.group(1).strip()
+    if len(headings) != 1:
+        raise PublicationError(
+            "La lezione sorgente deve contenere esattamente un titolo Markdown H1."
+        )
 
-    raise PublicationError(
-        "La Lesson Learned deve contenere un titolo Markdown H1."
-    )
+    return headings[0]
 
 
 def normalize_publication_title(heading: str) -> str:
-    prefix = re.match(
-        r"^Lesson\s+Learned\s*[—-]\s*(.+)$",
-        heading,
-        flags=re.IGNORECASE,
-    )
-
-    if prefix:
-        return f"{prefix.group(1).strip()} — Lesson Learned"
-
-    suffix = re.match(
-        r"^(.+?)\s*[—-]\s*Lesson\s+Learned$",
-        heading,
-        flags=re.IGNORECASE,
-    )
-
-    if suffix:
-        return f"{suffix.group(1).strip()} — Lesson Learned"
-
+    """Keep the reviewed H1 unchanged when deriving publication metadata."""
     return heading.strip()
 
 
@@ -127,7 +113,7 @@ def filename_stem(title: str) -> str:
     value = title.replace("—", "-")
     value = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "-", value)
     value = re.sub(r"\s+", " ", value).strip(" .-")
-    return value or "Lesson Learned"
+    return value or "lesson"
 
 
 def render_inline(text: str) -> str:
@@ -573,7 +559,7 @@ def update_publish_state(
     state_path: Path,
     title: str,
     author: str,
-    canonical_markdown_path: Path,
+    markdown_path: Path,
     html_path: Path,
     pdf_path: Path,
     epub_path: Path,
@@ -590,7 +576,7 @@ def update_publish_state(
         "title": title,
         "author": author,
         "outputs": {
-            "markdown": str(canonical_markdown_path),
+            "markdown": str(markdown_path),
             "html": str(html_path),
             "pdf": str(pdf_path),
             "epub": str(epub_path),
@@ -621,13 +607,13 @@ def publish_lesson(
 
     if not source_path.is_file():
         raise PublicationError(
-            f"Lesson Learned Markdown non trovata: {source_path}"
+            f"Lezione sorgente Markdown non trovata: {source_path}"
         )
 
     markdown = source_path.read_text(encoding="utf-8")
 
     if not markdown.strip():
-        raise PublicationError("La Lesson Learned Markdown è vuota.")
+        raise PublicationError("La lezione sorgente Markdown è vuota.")
 
     heading = extract_heading(markdown)
     title = normalize_publication_title(heading)
@@ -640,7 +626,7 @@ def publish_lesson(
     )
     publication_dir.mkdir(parents=True, exist_ok=True)
 
-    canonical_markdown_path = publication_dir / f"{stem}.md"
+    markdown_path = publication_dir / f"{stem}.md"
     html_path = publication_dir / f"{stem}.html"
     pdf_path = publication_dir / f"{stem}.pdf"
     epub_path = publication_dir / f"{stem}.epub"
@@ -683,7 +669,7 @@ def publish_lesson(
         )
 
         for destination in (
-            canonical_markdown_path,
+            markdown_path,
             html_path,
             pdf_path,
             epub_path,
@@ -694,7 +680,7 @@ def publish_lesson(
             if backup is not None:
                 backups[str(destination)] = str(backup)
 
-        atomic_write_text(canonical_markdown_path, markdown)
+        atomic_write_text(markdown_path, markdown)
         atomic_write_text(html_path, html_document)
         temporary_pdf.replace(pdf_path)
         temporary_epub.replace(epub_path)
@@ -707,8 +693,8 @@ def publish_lesson(
         "author": author,
         "files": {
             "markdown": {
-                "path": canonical_markdown_path.name,
-                "sha256": sha256_file(canonical_markdown_path),
+                "path": markdown_path.name,
+                "sha256": sha256_file(markdown_path),
             },
             "html": {
                 "path": html_path.name,
@@ -738,7 +724,7 @@ def publish_lesson(
         state_path=state_path,
         title=title,
         author=author,
-        canonical_markdown_path=canonical_markdown_path,
+        markdown_path=markdown_path,
         html_path=html_path,
         pdf_path=pdf_path,
         epub_path=epub_path,
@@ -749,7 +735,7 @@ def publish_lesson(
     return PublicationResult(
         workdir=workdir,
         source_path=source_path,
-        canonical_markdown_path=canonical_markdown_path,
+        markdown_path=markdown_path,
         html_path=html_path,
         pdf_path=pdf_path,
         epub_path=epub_path,
