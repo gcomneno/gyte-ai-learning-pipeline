@@ -57,6 +57,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.output_dir, Path("/tmp/publication"))
         self.assertEqual(args.author, "Autore di prova")
 
+    def test_publish_help_uses_source_lesson_terminology(self) -> None:
+        help_text = build_parser().format_help()
+
+        self.assertIn("lezione sorgente", help_text)
+        self.assertNotIn("Lesson Learned", help_text)
+
     def test_kindle_delivery_options_are_parsed(self) -> None:
         args = build_parser().parse_args(
             [

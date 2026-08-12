@@ -88,7 +88,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--publish-from",
         type=Path,
-        help="Pubblica una Lesson Learned Markdown revisionata.",
+        help="Pubblica una lezione sorgente Markdown revisionata.",
     )
     parser.add_argument(
         "--kindle-email",
@@ -260,13 +260,13 @@ def print_article(result: ArticleResult) -> None:
 
 def print_publication(result: PublicationResult) -> None:
     print()
-    print("===== PUBBLICAZIONE LESSON LEARNED =====")
+    print("===== PUBBLICAZIONE LEZIONE SORGENTE =====")
     print(f"Titolo:          {result.title}")
     print(f"Autore:          {result.author}")
     print(f"Parole sorgente: {result.metrics.source_words}")
     print(f"Parole PDF:      {result.metrics.pdf_words}")
     print(f"Parole EPUB:     {result.metrics.epub_words}")
-    print(f"Markdown:        {result.canonical_markdown_path}")
+    print(f"Markdown:        {result.markdown_path}")
     print(f"HTML:            {result.html_path}")
     print(f"PDF:             {result.pdf_path}")
     print(f"EPUB:            {result.epub_path}")
@@ -353,9 +353,7 @@ def publication_to_dict(result: PublicationResult) -> dict[str, object]:
     return {
         "title": result.title,
         "author": result.author,
-        "canonical_markdown_path": str(
-            result.canonical_markdown_path
-        ),
+        "markdown_path": str(result.markdown_path),
         "html_path": str(result.html_path),
         "pdf_path": str(result.pdf_path),
         "epub_path": str(result.epub_path),
