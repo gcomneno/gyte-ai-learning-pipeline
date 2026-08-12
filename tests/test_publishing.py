@@ -1,4 +1,4 @@
-"""Tests for Lesson Learned publication."""
+"""Tests for source-lesson publication."""
 
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ sys.path.insert(0, str(SRC))
 
 from gyte_study_tools.publishing import (  # noqa: E402
     ConversionMetrics,
+    PublicationError,
+    extract_heading,
     normalize_publication_title,
     publish_lesson,
     render_document,
@@ -24,17 +26,17 @@ from gyte_study_tools.publishing import (  # noqa: E402
 
 
 class PublishingTests(unittest.TestCase):
-    def test_title_is_reordered_for_kindle(self) -> None:
+    def test_title_is_preserved_for_publication(self) -> None:
         self.assertEqual(
             normalize_publication_title(
                 "Lesson Learned — Salvare il salvabile"
             ),
-            "Salvare il salvabile — Lesson Learned",
+            "Lesson Learned — Salvare il salvabile",
         )
 
     def test_markdown_is_rendered_semantically(self) -> None:
         markdown = """
-# Lesson Learned — Prova
+# Prova
 
 ## Sezione
 
@@ -48,7 +50,7 @@ Testo con **grassetto** e ``codice``.
 
         document = render_document(
             markdown,
-            "Prova — Lesson Learned",
+            "Prova",
             "Autore",
         )
 
@@ -81,7 +83,7 @@ Testo con **grassetto** e ``codice``.
 
             source = root / "lesson.md"
             source.write_text(
-                "# Lesson Learned — Titolo di prova\n\n"
+                "# Titolo di prova\n\n"
                 "Questo è il contenuto della lezione.\n",
                 encoding="utf-8",
             )
@@ -110,14 +112,14 @@ Testo con **grassetto** e ``codice``.
             ):
                 result = publish_lesson(workdir, source)
 
-            self.assertTrue(result.canonical_markdown_path.is_file())
+            self.assertTrue(result.markdown_path.is_file())
             self.assertTrue(result.html_path.is_file())
             self.assertTrue(result.pdf_path.is_file())
             self.assertTrue(result.epub_path.is_file())
             self.assertTrue(result.manifest_path.is_file())
             self.assertEqual(
                 result.title,
-                "Titolo di prova — Lesson Learned",
+                "Titolo di prova",
             )
 
             manifest = json.loads(
@@ -131,12 +133,20 @@ Testo con **grassetto** e ``codice``.
 
             self.assertEqual(
                 manifest["title"],
-                "Titolo di prova — Lesson Learned",
+                "Titolo di prova",
             )
             self.assertEqual(
                 state["stages"]["publish"]["status"],
                 "complete",
             )
+            self.assertEqual(
+                state["stages"]["publish"]["outputs"]["markdown"],
+                str(result.markdown_path),
+            )
+
+    def test_publish_requires_exactly_one_h1(self) -> None:
+        with self.assertRaisesRegex(PublicationError, "esattamente un"):
+            extract_heading("# Primo\n\n# Secondo\n")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ YouTube
   → normalizzazione
   → reflow
   → transcript di analisi
-  → Lesson Learned
+  → lezione sorgente revisionata
   → PDF ed EPUB
   → validazione
   → richiesta Kindle locale
@@ -34,13 +34,12 @@ La pipeline assistita è disponibile per:
 1. ispezione di video YouTube;
 2. acquisizione e normalizzazione dei transcript;
 3. preparazione del materiale di analisi;
-4. pubblicazione della Lesson Learned validata in Markdown, HTML, PDF ed EPUB;
+4. pubblicazione della lezione sorgente validata in Markdown, HTML, PDF ed EPUB;
 5. preparazione riavviabile della consegna Kindle;
 6. ingestione di articoli.
 
-La revisione e la generazione della Lesson Learned restano un passaggio
-editoriale controllato. Il fallback audio con Whisper non è ancora
-implementato.
+La revisione e la redazione della lezione sorgente restano un passaggio
+editoriale controllato. Il fallback audio con Whisper non è ancora implementato.
 
 ## Responsabilità
 
@@ -160,18 +159,34 @@ Il fallback audio con Whisper non è ancora implementato.
 
 ## Terza fase disponibile: publish
 
-Dopo la revisione editoriale, la Lesson Learned deve essere salvata in
-Markdown e può essere pubblicata con:
+Dopo la revisione editoriale, `lesson.md` è la lezione sorgente stabile: un
+handoff editoriale autosufficiente destinato a TritaLeLe. GYTE Study Tools non
+invoca TritaLeLe e non dipende da dettagli interni di LeLe Manager.
+
+La lezione sorgente deve rispettare questo contratto editoriale minimo:
+
+- esattamente un titolo Markdown H1;
+- uno scopo breve o una tesi centrale;
+- sezioni H2 tematiche e ragionevolmente autosufficienti;
+- separazione esplicita tra fatti, interpretazioni della fonte e valutazione critica;
+- concetti ed esempi rielaborati, senza riprodurre l'intero transcript;
+- applicazioni pratiche;
+- limiti o affermazioni non supportate;
+- domande di revisione o riflessione.
+
+`transcript.analysis.md` resta il materiale assistito per la revisione; la
+lezione sorgente viene redatta e controllata dall'editor, senza generazione
+automatica. Può quindi essere pubblicata con:
 
 ```bash
 gyte-lesson-kindle \
-  --publish-from "/percorso/Lesson Learned.md" \
+  --publish-from "/percorso/lesson.md" \
   "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
 La pubblicazione genera, dalla stessa sorgente semantica:
 
-- Markdown canonico;
+- Markdown pubblicato;
 - HTML;
 - PDF;
 - EPUB;
@@ -201,7 +216,7 @@ prepare locale → transfer/upload attachment → Gmail connector send → local
 
 ```bash
 gyte-lesson-kindle \
-  --publish-from "/percorso/Lesson Learned.md" \
+  --publish-from "/percorso/lesson.md" \
   --kindle-email reader@kindle.com \
   "https://www.youtube.com/watch?v=VIDEO_ID"
 ```

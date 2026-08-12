@@ -491,7 +491,7 @@ def build_analysis_markdown(
             "## Protocollo di analisi",
             "",
             (
-                "Nella successiva Lesson Learned distinguere "
+                "Nella successiva lezione sorgente distinguere "
                 "esplicitamente:"
             ),
             "",

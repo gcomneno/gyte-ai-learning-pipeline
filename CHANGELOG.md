@@ -54,7 +54,7 @@ Prima release assistita completa.
 
 ### Limitazioni note
 
-- la composizione della Lesson Learned richiede ancora un passaggio
+- la composizione della lezione sorgente richiede ancora un passaggio
   editoriale assistito;
 - il fallback audio con Whisper non è ancora implementato;
 - la generazione automatica tramite provider LLM non è ancora disponibile.
