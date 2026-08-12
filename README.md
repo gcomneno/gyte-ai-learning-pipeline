@@ -1,77 +1,79 @@
 # GYTE Study Tools
 
-Companion project di [GYTE](https://github.com/gcomneno/gyte) per trasformare
-video e transcript in materiali didattici personali e formati adatti alla
-lettura su Kindle.
+[English](README.md) | [Italiano](README.it.md)
 
-## Obiettivo
+Companion project for [GYTE](https://github.com/gcomneno/gyte) to transform
+videos and transcripts into personal learning materials and formats suitable
+for reading on Kindle.
 
-Fornire un comando unico:
+## Goal
+
+Provide a single command:
 
 ```text
 gyte-lesson-kindle URL_YOUTUBE
 ```
 
-La pipeline prevista è:
+The intended pipeline is:
 
 ```text
 YouTube
-  → metadati
-  → caption o trascrizione
-  → normalizzazione
+  → metadata
+  → captions or transcription
+  → normalization
   → reflow
-  → transcript di analisi
-  → lezione sorgente revisionata
-  → PDF ed EPUB
-  → validazione
-  → richiesta Kindle locale
+  → analysis transcript
+  → reviewed source lesson
+  → PDF and EPUB
+  → validation
+  → local Kindle request
 ```
 
-## Stato
+## Status
 
-La pipeline assistita è disponibile per:
+The assisted pipeline is available for:
 
-1. ispezione di video YouTube;
-2. acquisizione e normalizzazione dei transcript;
-3. preparazione del materiale di analisi;
-4. pubblicazione della lezione sorgente validata in Markdown, HTML, PDF ed EPUB;
-5. preparazione riavviabile della consegna Kindle;
-6. ingestione di articoli.
+1. inspecting YouTube videos;
+2. acquiring and normalizing transcripts;
+3. preparing analysis material;
+4. publishing the validated source lesson as Markdown, HTML, PDF and EPUB;
+5. resumable preparation of Kindle delivery;
+6. article ingestion.
 
-La revisione e la redazione della lezione sorgente restano un passaggio
-editoriale controllato. Il fallback audio con Whisper non è ancora implementato.
+Review and drafting of the source lesson remain a controlled editorial step.
+The Whisper audio fallback is not implemented yet.
 
-## Responsabilità
+## Responsibilities
 
-Questo progetto:
+This project:
 
-- orchestra gli strumenti GYTE;
-- gestisce cartelle, metadati e stato della pipeline;
-- valida transcript e output;
-- conserva prompt e template;
-- genera formati di lettura.
+- orchestrates GYTE tools;
+- manages directories, metadata and pipeline state;
+- validates transcripts and outputs;
+- stores prompts and templates;
+- generates reading formats.
 
-GYTE continua a occuparsi di:
+GYTE continues to handle:
 
-- estrazione delle caption;
-- pulizia del transcript;
-- reflow del testo.
+- caption extraction;
+- transcript cleaning;
+- text reflow.
 
-## Materiali privati
+## Private material
 
-Transcript, materiali derivati e output editoriali non devono essere
-salvati nel repository.
+Transcripts, derived material and editorial outputs must not be stored in the
+repository.
 
-Directory privata predefinita:
+Default private directory:
 
 ```text
 ~/.local/share/gyte-study-private-material
 ```
 
-Può essere sostituita con `--work-root` oppure impostando
+It can be overridden with `--work-root` or by setting
 `GYTE_STUDY_WORK_ROOT`.
 
-## Prerequisiti locali
+## Local prerequisites
 
 - Python 3
 - `gyte-transcript`
@@ -82,101 +84,100 @@ Può essere sostituita con `--work-root` oppure impostando
   - `ebook-meta`
 - `pdftotext`
 
-## Controllo ambiente
+## Environment check
 
 ```bash
 bin/gyte-lesson-kindle --check
 ```
 
-## Installazione locale prevista
+## Intended local installation
 
 ```bash
 scripts/install-local.sh
 ```
 
-L'installer crea il collegamento:
+The installer creates the link:
 
 ```text
 ~/.local/bin/gyte-lesson-kindle
 ```
 
-## Principi
+## Principles
 
-- pipeline riavviabile;
-- nessuna sovrascrittura silenziosa;
-- materiali privati separati dal codice;
-- output riproducibili;
-- passaggi verificabili;
-- degrado controllato da caption a Whisper;
-- nessuna dipendenza obbligatoria da servizi AI nella versione assistita.
+- resumable pipeline;
+- no silent overwrites;
+- private material separated from code;
+- reproducible outputs;
+- verifiable stages;
+- controlled degradation from captions to Whisper;
+- no mandatory dependency on AI services in the assisted version.
 
-## Prima fase disponibile: inspect
+## First available stage: inspect
 
-Dato un URL YouTube, il comando recupera i metadati, individua le caption
-preferibili e prepara una directory privata riavviabile:
+Given a YouTube URL, the command retrieves metadata, identifies the preferred
+captions and prepares a resumable private directory:
 
 ```bash
 gyte-lesson-kindle "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-File prodotti nella directory privata:
+Files produced in the private directory:
 
 - `source-url.txt`
 - `metadata.json`
 - `pipeline-state.json`
 
-Questa fase non scarica ancora caption, audio o video.
+This stage does not download captions, audio or video yet.
 
-## Seconda fase disponibile: prepare
+## Second available stage: prepare
 
-Per impostazione predefinita, dato un URL il comando completa sia `inspect`
-sia `prepare`:
+By default, given a URL the command completes both `inspect` and `prepare`:
 
 ```bash
 gyte-lesson-kindle "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-La fase produce o adotta in modo riavviabile:
+The stage produces or resumably adopts:
 
 - `transcript.raw.txt`
 - `transcript.normalized.txt`
 - `transcript.analysis.txt`
 - `transcript.analysis.md`
 
-Per limitarsi ai metadati:
+To limit execution to metadata:
 
 ```bash
 gyte-lesson-kindle --inspect-only URL_YOUTUBE
 ```
 
-Per rigenerare gli output della preparazione:
+To regenerate preparation outputs:
 
 ```bash
 gyte-lesson-kindle --force URL_YOUTUBE
 ```
 
-Il fallback audio con Whisper non è ancora implementato.
+The Whisper audio fallback is not implemented yet.
 
-## Terza fase disponibile: publish
+## Third available stage: publish
 
-Dopo la revisione editoriale, `lesson.md` è la lezione sorgente stabile: un
-handoff editoriale autosufficiente destinato a TritaLeLe. GYTE Study Tools non
-invoca TritaLeLe e non dipende da dettagli interni di LeLe Manager.
+After editorial review, `lesson.md` is the stable source lesson: a
+self-contained editorial handoff intended for TritaLeLe. GYTE Study Tools does
+not invoke TritaLeLe and does not depend on LeLe Manager internals.
 
-La lezione sorgente deve rispettare questo contratto editoriale minimo:
+The source lesson must satisfy this minimum editorial contract:
 
-- esattamente un titolo Markdown H1;
-- uno scopo breve o una tesi centrale;
-- sezioni H2 tematiche e ragionevolmente autosufficienti;
-- separazione esplicita tra fatti, interpretazioni della fonte e valutazione critica;
-- concetti ed esempi rielaborati, senza riprodurre l'intero transcript;
-- applicazioni pratiche;
-- limiti o affermazioni non supportate;
-- domande di revisione o riflessione.
+- exactly one Markdown H1 title;
+- a short purpose or central thesis;
+- thematic and reasonably self-contained H2 sections;
+- explicit separation between facts, source interpretations and critical assessment;
+- reworked concepts and examples without reproducing the full transcript;
+- practical applications;
+- limitations or unsupported claims;
+- review or reflection questions.
 
-`transcript.analysis.md` resta il materiale assistito per la revisione; la
-lezione sorgente viene redatta e controllata dall'editor, senza generazione
-automatica. Può quindi essere pubblicata con:
+`transcript.analysis.md` remains assisted material for editorial review; the
+source lesson is drafted and checked by the editor, without automatic
+generation. It can then be published with:
 
 ```bash
 gyte-lesson-kindle \
@@ -184,35 +185,34 @@ gyte-lesson-kindle \
   "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-La pubblicazione genera, dalla stessa sorgente semantica:
+Publishing generates from the same semantic source:
 
-- Markdown pubblicato;
+- published Markdown;
 - HTML;
 - PDF;
 - EPUB;
-- `publication-manifest.json` con hash SHA-256.
+- `publication-manifest.json` with SHA-256 hashes.
 
-Gli output vengono salvati per impostazione predefinita in:
+By default, outputs are saved in:
 
 ```text
 WORKSPACE_PRIVATO/publication/
 ```
 
-File precedenti con lo stesso nome vengono conservati mediante backup
-timestampati. PDF ed EPUB vengono validati prima di sostituire gli output
-esistenti.
+Previous files with the same name are preserved through timestamped backups.
+PDF and EPUB are validated before replacing existing outputs.
 
-## Consegna Kindle assistita
+## Assisted Kindle delivery
 
-L'invio effettivo è intenzionalmente separato dal processo locale: il comando
-non contiene credenziali e non accede a Gmail. Il flusso è riavviabile e ha
-due transizioni esplicite:
+Actual sending is intentionally separated from the local process: the command
+contains no credentials and does not access Gmail. The flow is resumable and
+has two explicit transitions:
 
 ```text
-prepare locale → transfer/upload attachment → Gmail connector send → local receipt
+local prepare → transfer/upload attachment → Gmail connector send → local receipt
 ```
 
-1. Pubblica e prepara la richiesta pending per un indirizzo Kindle valido:
+1. Publish and prepare the pending request for a valid Kindle address:
 
 ```bash
 gyte-lesson-kindle \
@@ -221,22 +221,22 @@ gyte-lesson-kindle \
   "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-Il comando verifica il manifest della pubblicazione, calcola SHA-256,
-crea `delivery/kindle-delivery-request.json` e mostra il percorso assoluto
-dell'allegato stabile in `delivery/outbox/`. Quel percorso è locale al
-workspace: non è automaticamente accessibile al Gmail connector eseguito in
-un altro ambiente. Il file deve quindi essere trasferito o caricato
-nell'ambiente del connector prima dell'invio. Il connector può usare
-direttamente `attachment_path` soltanto se condivide lo stesso filesystem;
-altrimenti il trasferimento è responsabilità dell'utente o dell'orchestratore.
-SHA-256 e dimensione identificano l'artefatto esatto da trasferire. Nessuna
-email viene inviata dal comando.
-L'allegato è sempre una copia indipendente dell'EPUB pubblicato (mai un hard
-link), installata atomicamente dopo la verifica di dimensione, SHA-256 e
-struttura EPUB.
+The command verifies the publication manifest, computes SHA-256, creates
+`delivery/kindle-delivery-request.json` and displays the absolute path of the
+stable attachment in `delivery/outbox/`. That path is local to the workspace
+and is not automatically accessible to a Gmail connector running in another
+environment. The file must therefore be transferred or uploaded into the
+connector environment before sending. The connector may use `attachment_path`
+directly only when it shares the same filesystem; otherwise the transfer is
+the responsibility of the user or orchestrator. SHA-256 and file size identify
+the exact artifact to transfer. The command sends no email.
 
-2. Dopo l'invio dal connector, registra la sua ricevuta (per esempio un ID
-messaggio) senza ripubblicare né contattare la rete:
+The attachment is always an independent copy of the published EPUB (never a
+hard link), installed atomically after size, SHA-256 and EPUB structure have
+been verified.
+
+2. After the connector sends the message, record its receipt (for example a
+message ID) without republishing or contacting the network:
 
 ```bash
 gyte-lesson-kindle \
@@ -244,45 +244,47 @@ gyte-lesson-kindle \
   "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-La seconda transizione trova il workspace esistente dall'URL, aggiorna la
-richiesta a `sent` e porta `stages.delivery` a `complete`. Ripetere la stessa
-ricevuta è sicuro; una ricevuta diversa viene rifiutata. Sono accettati solo
-domini esatti `kindle.com` e `free.kindle.com`. Prima della ricevuta vengono
-ricontrollati il contratto JSON e l'allegato `pending`; dopo il completamento
-l'allegato può essere rimosso, ma non la coerenza della richiesta `sent`.
-La ricevuta attesta l'invio dal Gmail connector, non la ricezione, consegna o
-conversione finale da parte del dispositivo Kindle.
+The second transition finds the existing workspace from the URL, updates the
+request to `sent` and moves `stages.delivery` to `complete`. Recording the same
+receipt again is safe; a different receipt is rejected. Only the exact
+`kindle.com` and `free.kindle.com` domains are accepted. Before recording the
+receipt, the JSON contract and the `pending` attachment are checked again;
+after completion the attachment may be removed without invalidating the
+coherence of the `sent` request.
 
-## Release corrente
+The receipt proves that the Gmail connector sent the message, not that Kindle
+received, delivered or converted it on the final device.
 
-Versione stabile: `0.4.0`.
+## Current release
 
-La pipeline assistita completa è disponibile:
+Stable version: `0.4.0`.
+
+The complete assisted pipeline is available:
 
 ```text
-URL YouTube
+YouTube URL
   → inspect
   → transcript
   → prepare
-  → revisione editoriale
+  → editorial review
   → publish
-  → PDF + EPUB validati
+  → validated PDF + EPUB
 ```
 
-Note complete:
+Full notes:
 
 - `CHANGELOG.md`
 - `docs/release-notes-v0.4.0.md`
 
-## Ingresso articoli
+## Article input
 
-Il comando riconosce automaticamente gli URL non YouTube come articoli:
+The command automatically recognizes non-YouTube URLs as articles:
 
 ```bash
 gyte-lesson-kindle "URL_ARTICOLO"
 ```
 
-La fase genera:
+The stage generates:
 
 - `article.raw.html`;
 - `article.extracted.md`;
@@ -290,6 +292,6 @@ La fase genera:
 - `metadata.json`;
 - `pipeline-state.json`.
 
-Il dossier separa il contenuto giornalistico dai riferimenti scientifici
-rilevati e include un protocollo per distinguere affermazioni della fonte,
-risultati primari, inferenze e fatti ancora da verificare.
+The dossier separates journalistic content from detected scientific references
+and includes a protocol for distinguishing source claims, primary results,
+inferences and facts that still require verification.
