@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta property="og:title" content="Article-scoped content example">
+  <meta property="og:url" content="https://example.test/scoped-content">
+  <title>Article-scoped content example</title>
+</head>
+<body>
+  <div class="content">
+    <p>OUTSIDE BOILERPLATE MUST NOT BE EXTRACTED.</p>
+  </div>
+
+  <article class="page single">
+    <nav>
+      <p>ARTICLE NAVIGATION MUST NOT BE EXTRACTED.</p>
+    </nav>
+    <div class="metadata">
+      <p>ARTICLE METADATA MUST NOT BE EXTRACTED.</p>
+    </div>
+    <div id="content" class="content">
+      <h2>Trusted editorial heading</h2>
+      <p>
+        This representative editorial paragraph contains enough meaningful
+        words to satisfy the ingestion threshold while reproducing the
+        structure observed on a real publishing site. The extractor should
+        recognize this container only because it appears inside a semantic
+        article element, preserving the existing conservative behavior for
+        generic content containers elsewhere on the page.
+      </p>
+      <p>
+        A second paragraph confirms that multiple blocks remain available,
+        navigation and unrelated page furniture stay excluded, and useful
+        references such as
+        <a href="https://doi.org/10.1000/example">the example study</a>
+        are still discovered from links inside the editorial body.
+      </p>
+    </div>
+  </article>
+
+  <footer><p>FOOTER BOILERPLATE MUST NOT BE EXTRACTED.</p></footer>
+</body>
+</html>
