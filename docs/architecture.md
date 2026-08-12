@@ -1,97 +1,99 @@
-# Architettura iniziale
+# Initial architecture
 
-## Confini
+[English](architecture.md) | [Italiano](it/architecture.md)
+
+## Boundaries
 
 ### GYTE
 
-Fornisce i mattoni generali per ottenere e preparare il testo:
+Provides the general building blocks for obtaining and preparing text:
 
 - `gyte-transcript`
 - `gyte-reflow-text`
 
 ### GYTE Study Tools
 
-Orchestra il workflow didattico ed editoriale:
+Orchestrates the study and editorial workflow:
 
-- identificazione del video;
-- creazione della directory di lavoro;
-- selezione delle caption;
-- fallback di trascrizione;
-- normalizzazione;
-- validazione;
-- creazione del pacchetto di analisi;
-- pubblicazione della lezione sorgente revisionata;
-- conversione Markdown → PDF;
-- conversione Markdown → EPUB;
-- validazione degli output.
+- video identification;
+- work-directory creation;
+- caption selection;
+- transcription fallback;
+- normalization;
+- validation;
+- analysis-package creation;
+- publication of the reviewed source lesson;
+- Markdown → PDF conversion;
+- Markdown → EPUB conversion;
+- output validation.
 
-### Materiali privati
+### Private material
 
-Sono conservati esternamente al repository.
+Private material is stored outside the repository.
 
-Directory predefinita:
+Default directory:
 
 ```text
 ~/.local/share/gyte-study-private-material
 ```
 
-Il percorso può essere sostituito tramite `--work-root` o
+The path can be overridden through `--work-root` or
 `GYTE_STUDY_WORK_ROOT`.
 
-## Fasi previste
+## Intended stages
 
 1. `inspect`
-   - recupero metadati;
-   - verifica caption;
-   - creazione di uno slug stabile.
+   - metadata retrieval;
+   - caption availability check;
+   - stable slug creation.
 
 2. `transcribe`
-   - priorità a `it-orig`;
-   - fallback a `it`;
-   - fallback futuro a Whisper.
+   - prefer `it-orig`;
+   - fallback to `it`;
+   - future fallback to Whisper.
 
 3. `prepare`
-   - conservazione del transcript originale;
-   - normalizzazione UTF-8 e HTML;
-   - reflow AI-friendly;
-   - controllo del conteggio delle parole;
-   - generazione di `transcript.analysis.md`.
+   - preserve the original transcript;
+   - UTF-8 and HTML normalization;
+   - AI-friendly reflow;
+   - word-count verification;
+   - generate `transcript.analysis.md`.
 
 4. `compose`
-   - versione assistita: attende la lezione sorgente revisionata;
-   - versione completa futura: usa un provider LLM configurabile.
+   - assisted version: waits for the reviewed source lesson;
+   - future full version: uses a configurable LLM provider.
 
 5. `publish`
-   - sorgente unica Markdown;
-   - generazione indipendente di PDF ed EPUB;
-   - metadati coerenti;
-   - backup degli output precedenti.
+   - single Markdown source;
+   - independent PDF and EPUB generation;
+   - coherent metadata;
+   - backups of previous outputs.
 
 6. `validate`
-   - integrità ZIP dell'EPUB;
-   - verifica del mimetype;
-   - controllo del testo recuperabile;
-   - riepilogo finale.
+   - EPUB ZIP integrity;
+   - mimetype verification;
+   - recoverable-text check;
+   - final summary.
 
 7. `delivery`
-   - transizione locale **prepare** solo dopo `publish` completo e manifest
-     valido;
-   - verifica di hash e dimensione EPUB, quindi copia indipendente atomica in
-     `delivery/outbox/` (mai hard link);
-   - richiesta `kindle-delivery-request.json` con stato `pending`,
-     `handoff_mode=external-file-transfer` e
+   - local **prepare** transition only after `publish` is complete and the
+     manifest is valid;
+   - verify EPUB hash and size, then create an independent atomic copy in
+     `delivery/outbox/` (never a hard link);
+   - create `kindle-delivery-request.json` with state `pending`,
+     `handoff_mode=external-file-transfer` and
      `handoff_status=awaiting-transfer`;
-   - trasferimento/upload dell'allegato locale nell'ambiente accessibile al
-     Gmail connector, poi invio esterno;
-   - transizione locale **record receipt** che salva la ricevuta e aggiorna
-     lo stato a `complete` con `handoff_status=connector-sent`.
+   - transfer/upload the local attachment into an environment accessible to
+     the Gmail connector, then send externally;
+   - local **record receipt** transition that stores the receipt and updates
+     the state to `complete` with `handoff_status=connector-sent`.
 
-## Stato riavviabile
+## Resumable state
 
-Ogni fase dovrà produrre un file di stato o output riconoscibile.
+Each stage must produce a recognizable state file or output.
 
-Una nuova esecuzione non dovrà ripetere automaticamente una fase già valida,
-salvo richiesta esplicita con opzioni come:
+A new execution must not automatically repeat a stage that is already valid,
+unless explicitly requested with options such as:
 
 ```text
 --force
@@ -99,91 +101,92 @@ salvo richiesta esplicita con opzioni come:
 --rebuild epub
 ```
 
-## Dipendenze
+## Dependencies
 
-La versione iniziale usa esclusivamente:
+The initial version uses only:
 
-- libreria standard Python;
-- comandi GYTE;
+- Python standard library;
+- GYTE commands;
 - `yt-dlp`;
 - Calibre;
 - Poppler.
 
-Non richiede Pandoc, WeasyPrint o wkhtmltopdf.
+It does not require Pandoc, WeasyPrint or wkhtmltopdf.
 
-## Implementazione corrente
+## Current implementation
 
-La fase `inspect` è disponibile e:
+The `inspect` stage is available and:
 
-- interroga `yt-dlp` senza scaricare contenuti multimediali;
-- raccoglie metadati e lingue delle caption;
-- preferisce `it-orig`, poi `it`;
-- distingue caption manuali e automatiche;
-- crea un workspace privato stabile;
-- registra lo stato della fase in forma JSON.
+- queries `yt-dlp` without downloading media;
+- collects metadata and caption languages;
+- prefers `it-orig`, then `it`;
+- distinguishes manual and automatic captions;
+- creates a stable private workspace;
+- records stage state as JSON.
 
-### Fase prepare
+### Prepare stage
 
-La fase `prepare`:
+The `prepare` stage:
 
-- riutilizza un transcript caption già presente;
-- invoca `gyte-transcript` solo quando necessario;
-- conserva una copia stabile del testo originale;
-- normalizza le entità HTML;
-- esegue il reflow AI-friendly;
-- verifica che il reflow non perda parole;
-- genera il Markdown da caricare per la revisione editoriale;
-- adotta senza riscriverli output completi già esistenti;
-- registra le fasi `transcribe` e `prepare` nel file di stato.
+- reuses an existing caption transcript;
+- invokes `gyte-transcript` only when necessary;
+- keeps a stable copy of the original text;
+- normalizes HTML entities;
+- performs AI-friendly reflow;
+- verifies that reflow does not lose words;
+- generates the Markdown uploaded for editorial review;
+- adopts complete existing outputs without rewriting them;
+- records the `transcribe` and `prepare` stages in the state file.
 
-### Fase publish
+### Publish stage
 
-La fase `publish`:
+The `publish` stage:
 
-- accetta una lezione sorgente revisionata in Markdown;
-- ricava il titolo dall'H1;
-- conserva il titolo H1 senza aggiungere etichette;
-- renderizza HTML semantico senza dipendenze Python esterne;
-- genera PDF ed EPUB separatamente tramite Calibre;
-- valida struttura EPUB e testo recuperabile;
-- valida il testo recuperabile dal PDF;
-- conserva gli output precedenti con backup timestampati;
-- genera un manifest con hash SHA-256;
-- registra la pubblicazione nello stato della pipeline.
+- accepts a reviewed Markdown source lesson;
+- derives the title from the H1;
+- preserves the H1 title without adding labels;
+- renders semantic HTML without external Python dependencies;
+- generates PDF and EPUB separately through Calibre;
+- validates EPUB structure and recoverable text;
+- validates recoverable text from the PDF;
+- preserves previous outputs with timestamped backups;
+- generates a manifest with SHA-256 hashes;
+- records publication in pipeline state.
 
-### Fase delivery
+### Delivery stage
 
-La consegna Kindle mantiene esplicito il confine tra filesystem privato e
-connector esterno. `--kindle-email` può essere usato insieme a
-`--publish-from`: non invia email, ma prepara una richiesta verificabile
-contenente destinatario, oggetto, hash, dimensione e percorso dell'EPUB.
-Il flusso è `prepare locale -> transfer/upload attachment -> Gmail connector
-send -> local receipt`. Il percorso dell'outbox è locale al workspace e non è
-automaticamente leggibile dal connector: `attachment_path` può essere usato
-direttamente solo con filesystem condiviso; altrimenti utente o orchestratore
-devono trasferire il file. SHA-256 e dimensione identificano l'artefatto da
-trasferire. Il connector Gmail restituisce una ricevuta dell'invio Gmail.
-`--record-kindle-delivery RECEIPT URL` risolve il workspace dai metadati
-locali e registra tale ricevuta in modo atomico. Non esistono OAuth, SMTP,
-token o configurazioni Gmail nel repository.
+Kindle delivery keeps the boundary between the private filesystem and the
+external connector explicit. `--kindle-email` can be used together with
+`--publish-from`: it sends no email, but prepares a verifiable request
+containing recipient, subject, hash, size and EPUB path.
 
-L'EPUB nell'outbox è sempre una copia con inode distinto dall'artefatto
-pubblicato: le due versioni non condividono contenuto modificabile. Prima di
-registrare una ricevuta, il contratto JSON, il percorso confinato nell'outbox,
-dimensione, SHA-256 e struttura EPUB della richiesta `pending` vengono tutti
-riverificati. Una richiesta `sent` mantiene gli stessi campi strutturali e la
-stessa ricevuta idempotente; il suo allegato può essere rimosso dopo il
-completamento. La ricevuta non prova la ricezione, la consegna o la conversione
-finale sul dispositivo Kindle.
+The flow is `local prepare -> transfer/upload attachment -> Gmail connector
+send -> local receipt`. The outbox path is local to the workspace and is not
+automatically readable by the connector: `attachment_path` can be used
+directly only with a shared filesystem; otherwise the user or orchestrator
+must transfer the file. SHA-256 and file size identify the artifact to
+transfer. The Gmail connector returns a receipt for the Gmail send operation.
 
-### Ingresso article
+`--record-kindle-delivery RECEIPT URL` resolves the workspace from local
+metadata and records that receipt atomically. The repository contains no OAuth,
+SMTP, token or Gmail configuration.
 
-Gli URL HTTP non riconosciuti come YouTube seguono una pipeline distinta:
+The EPUB in the outbox is always a copy with a different inode from the
+published artifact: the two versions do not share mutable content. Before a
+receipt is recorded, the JSON contract, the outbox-confined path, size,
+SHA-256 and EPUB structure of the `pending` request are all checked again. A
+`sent` request keeps the same structural fields and the same idempotent
+receipt; its attachment may be removed after completion. The receipt does not
+prove final Kindle reception, delivery or conversion.
 
-1. download HTML con user agent dichiarato;
-2. lettura dei metadati Open Graph e JSON-LD;
-3. estrazione del contenitore `post-body` o `entry-content`;
-4. esclusione del boilerplate della pagina;
-5. registrazione separata dei riferimenti scientifici;
-6. produzione di `article.analysis.md`;
-7. successiva revisione editoriale e pubblicazione condivisa.
+### Article input
+
+HTTP URLs not recognized as YouTube follow a distinct pipeline:
+
+1. download HTML with a declared user agent;
+2. read Open Graph and JSON-LD metadata;
+3. extract the `post-body` or `entry-content` container;
+4. exclude page boilerplate;
+5. record scientific references separately;
+6. produce `article.analysis.md`;
+7. perform later editorial review and shared publication.
