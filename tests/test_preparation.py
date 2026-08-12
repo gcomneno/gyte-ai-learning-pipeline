@@ -20,6 +20,8 @@ sys.path.insert(0, str(SRC))
 from gyte_study_tools.inspection import inspect_video  # noqa: E402
 from gyte_study_tools.preparation import (  # noqa: E402
     PreparationError,
+    count_words,
+    lexical_word_tokens,
     locate_caption_transcript,
     prepare_transcript,
     run_gyte_transcript,
@@ -125,6 +127,98 @@ class PreparationTests(unittest.TestCase):
                 reused.source_mode,
                 "adopted-existing",
             )
+
+    def test_prepare_accepts_punctuation_attached_by_reflow(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir = self.make_workspace(Path(temporary))
+            source = workdir / "video.it-orig.txt"
+            source.write_text(
+                "cose buone , la gente\n",
+                encoding="utf-8",
+            )
+
+            def fake_reflow(
+                input_path: Path,
+                output_path: Path,
+            ) -> None:
+                self.assertEqual(
+                    input_path.read_text(encoding="utf-8"),
+                    "cose buone , la gente\n",
+                )
+                output_path.write_text(
+                    "cose buone, la gente\n",
+                    encoding="utf-8",
+                )
+
+            with patch(
+                "gyte_study_tools.preparation.run_reflow",
+                side_effect=fake_reflow,
+            ):
+                result = prepare_transcript(workdir)
+
+            self.assertEqual(result.normalized_words, 4)
+            self.assertEqual(result.analysis_words, 4)
+
+    def test_prepare_rejects_lexical_removal_by_reflow(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir = self.make_workspace(Path(temporary))
+            source = workdir / "video.it-orig.txt"
+            source.write_text(
+                "cose buone, la gente\n",
+                encoding="utf-8",
+            )
+
+            def fake_reflow(_: Path, output_path: Path) -> None:
+                output_path.write_text(
+                    "cose buone, gente\n",
+                    encoding="utf-8",
+                )
+
+            with patch(
+                "gyte_study_tools.preparation.run_reflow",
+                side_effect=fake_reflow,
+            ):
+                with self.assertRaisesRegex(
+                    PreparationError,
+                    "sequenza lessicale",
+                ):
+                    prepare_transcript(workdir)
+
+    def test_prepare_rejects_equal_count_lexical_replacement(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir = self.make_workspace(Path(temporary))
+            source = workdir / "video.it-orig.txt"
+            source.write_text(
+                "cose buone, la gente\n",
+                encoding="utf-8",
+            )
+
+            def fake_reflow(_: Path, output_path: Path) -> None:
+                output_path.write_text(
+                    "cose belle, la gente\n",
+                    encoding="utf-8",
+                )
+
+            with patch(
+                "gyte_study_tools.preparation.run_reflow",
+                side_effect=fake_reflow,
+            ):
+                with self.assertRaisesRegex(
+                    PreparationError,
+                    "sequenza lessicale",
+                ):
+                    prepare_transcript(workdir)
+
+    def test_lexical_word_tokens_canonicalize_internal_apostrophes(
+        self,
+    ) -> None:
+        self.assertEqual(
+            lexical_word_tokens("l'anno, l’anno"),
+            ("l'anno", "l'anno"),
+        )
+        self.assertEqual(count_words("l'anno, l’anno"), 2)
 
     def test_original_caption_reuses_base_language_transcript(
         self,

@@ -5,9 +5,9 @@ from __future__ import annotations
 import html
 import json
 import os
-import re
 import shutil
 import subprocess
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,7 +68,50 @@ def read_json_object(path: Path) -> dict[str, Any]:
 
 
 def count_words(text: str) -> int:
-    return len(re.findall(r"\S+", text))
+    return len(lexical_word_tokens(text))
+
+
+def lexical_word_tokens(text: str) -> tuple[str, ...]:
+    """Return ordered lexical words, independent of spacing and punctuation.
+
+    Letters and numbers form words.  Straight and curly apostrophes are kept
+    only when they occur between word characters, and are canonicalized to a
+    straight apostrophe so both spellings have identical semantics.
+    """
+    normalized_text = unicodedata.normalize("NFC", text)
+    tokens: list[str] = []
+    current: list[str] = []
+
+    for index, character in enumerate(normalized_text):
+        if character.isalnum():
+            current.append(character)
+            continue
+
+        next_is_word_character = (
+            index + 1 < len(normalized_text)
+            and normalized_text[index + 1].isalnum()
+        )
+        if (
+            character in {"'", "’"}
+            and current
+            and next_is_word_character
+        ):
+            current.append("'")
+            continue
+
+        if current:
+            tokens.append("".join(current))
+            current = []
+
+    if current:
+        tokens.append("".join(current))
+
+    return tuple(tokens)
+
+
+def has_matching_lexical_tokens(source: str, reflowed: str) -> bool:
+    """Return whether reflow preserved every lexical word and its order."""
+    return lexical_word_tokens(source) == lexical_word_tokens(reflowed)
 
 
 def count_file_words(path: Path) -> int:
@@ -360,9 +403,13 @@ def prepare_transcript(
         normalized_words = count_file_words(normalized_path)
         analysis_words = count_file_words(analysis_text_path)
 
-        if normalized_words != analysis_words:
+        if not has_matching_lexical_tokens(
+            normalized_path.read_text(encoding="utf-8"),
+            analysis_text_path.read_text(encoding="utf-8"),
+        ):
             raise PreparationError(
-                "Gli output esistenti non superano il controllo parole: "
+                "Gli output esistenti non superano il controllo della "
+                "sequenza lessicale: "
                 f"normalizzato={normalized_words}, "
                 f"analysis={analysis_words}."
             )
@@ -449,9 +496,9 @@ def prepare_transcript(
     normalized_words = count_words(normalized_text)
     analysis_words = count_words(analysis_text)
 
-    if normalized_words != analysis_words:
+    if not has_matching_lexical_tokens(normalized_text, analysis_text):
         raise PreparationError(
-            "Il reflow ha modificato il conteggio delle parole: "
+            "Il reflow ha modificato la sequenza lessicale: "
             f"normalizzato={normalized_words}, "
             f"analysis={analysis_words}."
         )
