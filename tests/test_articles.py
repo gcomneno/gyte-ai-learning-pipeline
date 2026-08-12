@@ -13,6 +13,7 @@ from unittest.mock import patch
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC = PROJECT_ROOT / "src"
 FIXTURE = PROJECT_ROOT / "tests/fixtures/article.html"
+SCOPED_CONTENT_FIXTURE = PROJECT_ROOT / "tests/fixtures/article-scoped-content.html"
 
 sys.path.insert(0, str(SRC))
 
@@ -61,6 +62,42 @@ class ArticleTests(unittest.TestCase):
             )
             self.assertNotIn("Popular Posts", analysis)
             self.assertNotIn("Post a Comment", analysis)
+
+    def test_article_scoped_content_container_is_extracted(self) -> None:
+        document = SCOPED_CONTENT_FIXTURE.read_text(encoding="utf-8")
+        url = "https://example.test/scoped-content"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch(
+                "gyte_study_tools.articles.fetch_article",
+                return_value=document,
+            ):
+                result = ingest_article(url, Path(temporary))
+
+            extracted = result.extracted_markdown_path.read_text(
+                encoding="utf-8"
+            )
+
+            self.assertGreater(result.content_words, 50)
+            self.assertEqual(
+                result.record["article"]["title"],
+                "Article-scoped content example",
+            )
+            self.assertIn("Trusted editorial heading", extracted)
+            self.assertIn("multiple blocks remain available", extracted)
+            self.assertIn("the example study", extracted)
+            self.assertNotIn("OUTSIDE BOILERPLATE", extracted)
+            self.assertNotIn("ARTICLE NAVIGATION", extracted)
+            self.assertNotIn("ARTICLE METADATA", extracted)
+            self.assertNotIn("FOOTER BOILERPLATE", extracted)
+            self.assertEqual(
+                len(result.record["scientific_references"]),
+                1,
+            )
+            self.assertEqual(
+                result.record["scientific_references"][0]["url"],
+                "https://doi.org/10.1000/example",
+            )
 
     def test_complete_article_outputs_are_reused(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
