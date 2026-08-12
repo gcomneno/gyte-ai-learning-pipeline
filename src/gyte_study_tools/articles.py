@@ -89,6 +89,7 @@ class ArticleParser(HTMLParser):
         self.json_ld_parts: list[str] = []
         self.json_ld_documents: list[str] = []
 
+        self.article_depth = 0
         self.content_active = False
         self.content_depth = 0
         self.blocked_depth = 0
@@ -147,9 +148,22 @@ class ArticleParser(HTMLParser):
             self.json_ld_depth += 1
             self.json_ld_parts = []
 
+        if tag == "article":
+            self.article_depth += 1
+
         classes = set(attributes.get("class", "").split())
-        is_content_root = bool(
+        is_traditional_content_root = bool(
             classes.intersection({"post-body", "entry-content"})
+        )
+        is_article_scoped_content_root = bool(
+            tag == "div"
+            and attributes.get("id") == "content"
+            and "content" in classes
+            and self.article_depth > 0
+        )
+        is_content_root = (
+            is_traditional_content_root
+            or is_article_scoped_content_root
         )
 
         if not self.content_active:
@@ -202,6 +216,8 @@ class ArticleParser(HTMLParser):
             self.json_ld_parts = []
 
         if not self.content_active:
+            if tag == "article" and self.article_depth:
+                self.article_depth -= 1
             return
 
         if tag == "a" and self.current_link is not None:
@@ -227,6 +243,9 @@ class ArticleParser(HTMLParser):
         if self.content_depth <= 0:
             self.content_active = False
             self.content_depth = 0
+
+        if tag == "article" and self.article_depth:
+            self.article_depth -= 1
 
     def handle_data(self, data: str) -> None:
         if self.title_depth:
