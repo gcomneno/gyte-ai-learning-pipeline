@@ -11,7 +11,9 @@ Provides the general building blocks for obtaining and preparing text:
 - `gyte-transcript`
 - `gyte-reflow-text`
 
-### GYTE Study Tools
+### GYTE AI Learning Pipeline
+
+Optional AI capabilities may assist analysis, but they do not own pipeline state or editorial authority. Their absence or failure must not invalidate already-valid deterministic stages.
 
 Orchestrates the study and editorial workflow:
 

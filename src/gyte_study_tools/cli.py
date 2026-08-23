@@ -1,4 +1,4 @@
-"""Command-line interface for GYTE Study Tools."""
+"""Command-line interface for GYTE AI Learning Pipeline."""
 
 from __future__ import annotations
 
@@ -143,7 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
 def check_environment() -> int:
     missing: list[str] = []
 
-    print("===== CONTROLLO AMBIENTE GYTE STUDY TOOLS =====")
+    print("===== CONTROLLO AMBIENTE GYTE AI LEARNING PIPELINE =====")
 
     for command in REQUIRED_COMMANDS:
         path = shutil.which(command)
