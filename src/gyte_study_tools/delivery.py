@@ -471,7 +471,7 @@ def prepare_kindle_delivery(workdir: Path, recipient: str) -> DeliveryResult:
         "handoff_mode": HANDOFF_MODE,
         "handoff_status": AWAITING_TRANSFER,
         "recipient": recipient,
-        "subject": "GYTE Study Tools — EPUB per Kindle",
+        "subject": "GYTE AI Learning Pipeline — EPUB per Kindle",
         "attachment_path": str(attachment_path),
         "attachment_sha256": attachment_sha256,
         "attachment_bytes": attachment_path.stat().st_size,

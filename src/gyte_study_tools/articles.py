@@ -22,7 +22,7 @@ from gyte_study_tools.inspection import (
 )
 
 
-USER_AGENT = "Mozilla/5.0 GYTE-Study-Tools/0.5.0"
+USER_AGENT = "Mozilla/5.0 GYTE-AI-Learning-Pipeline/0.5.0"
 RAW_HTML_FILENAME = "article.raw.html"
 EXTRACTED_FILENAME = "article.extracted.md"
 ANALYSIS_FILENAME = "article.analysis.md"

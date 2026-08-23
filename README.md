@@ -1,4 +1,4 @@
-# GYTE Study Tools
+# GYTE AI Learning Pipeline
 
 [English](README.md) | [Italiano](README.it.md)
 
@@ -104,6 +104,8 @@ The installer creates the link:
 
 ## Principles
 
+AI capabilities are optional and advisory. AI output is never editorial authority, and absence or failure of AI must not prevent the deterministic base pipeline from continuing.
+
 - resumable pipeline;
 - no silent overwrites;
 - private material separated from code;
@@ -161,7 +163,7 @@ The Whisper audio fallback is not implemented yet.
 ## Third available stage: publish
 
 After editorial review, `lesson.md` is the stable source lesson: a
-self-contained editorial handoff intended for TritaLeLe. GYTE Study Tools does
+self-contained editorial handoff intended for TritaLeLe. GYTE AI Learning Pipeline does
 not invoke TritaLeLe and does not depend on LeLe Manager internals.
 
 The source lesson must satisfy this minimum editorial contract:

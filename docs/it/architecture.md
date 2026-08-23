@@ -11,7 +11,9 @@ Fornisce i mattoni generali per ottenere e preparare il testo:
 - `gyte-transcript`
 - `gyte-reflow-text`
 
-### GYTE Study Tools
+### GYTE AI Learning Pipeline
+
+Le capability AI opzionali possono assistere l'analisi, ma non possiedono lo stato della pipeline né l'autorità editoriale. La loro assenza o il loro fallimento non deve invalidare fasi deterministiche già valide.
 
 Orchestra il workflow didattico ed editoriale:
 

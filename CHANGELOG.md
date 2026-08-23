@@ -1,6 +1,6 @@
 # Changelog
 
-Tutte le modifiche rilevanti di GYTE Study Tools sono documentate
+Tutte le modifiche rilevanti di GYTE AI Learning Pipeline sono documentate
 in questo file.
 
 Il progetto segue il versionamento semantico.
