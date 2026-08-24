@@ -39,7 +39,7 @@ Goal: make artifact derivation explicit and machine-verifiable without leaking p
 Expected result:
 
 - precise hash semantics;
-- explicit provenance chain from evidence/preparation to reviewed source and publication artifacts;
+- byte-level publication provenance and observed source/preparation context;
 - authority distinctions retained in manifest/state semantics;
 - stale/inconsistent/tampered provenance rejected;
 - compatibility/version behavior documented and tested.
@@ -51,8 +51,16 @@ Goal: ensure prepared or generated material can never silently become publicatio
 Key invariant:
 
 ```text
-evidence != prepared analysis != editorial candidate != reviewed source
+source evidence
+!= normalized evidence
+!= prepared analysis
+!= editorial candidate
+!= reviewed source
+!= published derivative
 ```
+
+Implementation now establishes the explicit checkpoint and the publication gate.
+The issue remains ACTIVE until review/merge closure.
 
 ## Wave 2 — GiadaWare AI semantic capability
 
@@ -146,8 +154,8 @@ Prefer after provenance semantics are stable so reproducibility can distinguish 
 
 ## Current execution order
 
-1. **#17 — ACTIVE**
-2. #18
+1. **#17 — DONE**
+2. **#18 — ACTIVE**
 3. finalize GiadaWare AI contract
 4. GiadaWare AI learning-source capability
 5. #25

@@ -641,6 +641,51 @@ class DeliveryTests(unittest.TestCase):
             self.assertEqual(after["stages"]["publish"], before["stages"]["publish"])
             self.assertEqual(after["stages"]["publish"]["status"], "complete")
 
+    def test_prepare_accepts_manifest_v2_with_review_checkpoint(self) -> None:
+        valid_review_checkpoint = {
+            "relationship": "required-prior-explicit-operation",
+            "checkpoint_id": "review-" + "1" * 64,
+            "checkpoint_sha256": "2" * 64,
+            "created_at": "2026-08-24T00:00:00+00:00",
+        }
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workdir_without_checkpoint, _ = self.make_workspace(root / "without")
+            without_checkpoint = prepare_kindle_delivery(
+                workdir_without_checkpoint,
+                "reader@kindle.com",
+            )
+            self.assertEqual(without_checkpoint.request["status"], "pending")
+
+            workdir_with_checkpoint, _ = self.make_workspace(root / "with")
+            manifest = self.read_manifest(workdir_with_checkpoint)
+            manifest["review_checkpoint"] = valid_review_checkpoint
+            self.write_manifest(workdir_with_checkpoint, manifest)
+
+            with_checkpoint = prepare_kindle_delivery(
+                workdir_with_checkpoint,
+                "reader@kindle.com",
+            )
+            self.assertEqual(with_checkpoint.request["status"], "pending")
+
+    def test_delivery_does_not_open_private_review_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir, _ = self.make_workspace(Path(temporary))
+            manifest = self.read_manifest(workdir)
+            manifest["review_checkpoint"] = {
+                "relationship": "required-prior-explicit-operation",
+                "checkpoint_id": "review-" + "3" * 64,
+                "checkpoint_sha256": "4" * 64,
+                "created_at": "2026-08-24T00:00:00+00:00",
+            }
+            self.write_manifest(workdir, manifest)
+            (workdir / "reviewed-source-checkpoint.json").unlink(missing_ok=True)
+
+            result = prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+            self.assertEqual(result.request["status"], "pending")
+
 
 if __name__ == "__main__":
     unittest.main()
