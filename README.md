@@ -107,9 +107,26 @@ The installer creates the link:
 ~/.local/bin/gyte-lesson-kindle
 ```
 
+The deterministic base pipeline does not require `giadaware-ai`.
+
+The optional `--ai-advisory` operation requires the `giadaware-ai` package to
+be importable by the same Python interpreter used by `gyte-lesson-kindle`.
+GiadaWare AI is currently distributed separately and is not published to PyPI;
+install its built wheel according to the `giadaware-ai` repository installation
+instructions. The GYTE installer intentionally does not locate sibling
+checkouts, modify `PYTHONPATH` for external packages, or install that optional
+dependency automatically.
+
+If `giadaware-ai` or its Ollama composition is not importable,
+`--ai-advisory` records an optional `configuration` failure while preserving
+the already-successful deterministic preparation.
+
 ## Principles
 
-AI capabilities are optional and advisory. AI output is never editorial authority, and absence or failure of AI must not prevent the deterministic base pipeline from continuing.
+AI capabilities are optional and advisory. AI output is never editorial
+authority, and absence or failure of AI must not prevent the deterministic base
+pipeline from continuing. AI advisories are explicit operations, not numbered
+pipeline stages or pipeline-state authority.
 
 - resumable pipeline;
 - no silent overwrites;
@@ -150,6 +167,66 @@ The stage produces or resumably adopts:
 - `transcript.normalized.txt`
 - `transcript.analysis.txt`
 - `transcript.analysis.md`
+
+## Optional AI advisory
+
+The AI advisory runs only when requested explicitly:
+
+```bash
+GYTE_AI_MODEL="qwen2.5:1.5b-instruct" \
+gyte-lesson-kindle --ai-advisory URL
+```
+
+For articles and videos it uses only the current prepared analysis material:
+
+- `transcript.analysis.md` for YouTube;
+- `article.analysis.md` for articles.
+
+The canonical input must be a direct workspace child, a regular file, not a
+symlink, non-empty and valid UTF-8. Exact input bytes produce SHA-256 and byte
+count before strict decoding and before calling the semantic
+`analyze_learning_source(text)` capability.
+
+The operation atomically writes:
+
+```text
+WORKSPACE/learning-source.analysis.ai.json
+```
+
+The filename and semantic artifact identity are distinct. The envelope
+contains:
+
+```json
+{
+  "schema_version": 1,
+  "artifact": "learning-source.analysis.ai",
+  "authority": "ai-advisory",
+  "status": "complete",
+  "provenance": {
+    "source_type": "youtube|article",
+    "canonical_input": "transcript.analysis.md|article.analysis.md",
+    "canonical_input_sha256": "...",
+    "canonical_input_byte_count": 123
+  },
+  "payload": {
+    "central_thesis": "...",
+    "key_concepts": [],
+    "source_claims": [],
+    "practical_applications": [],
+    "limitations": [],
+    "review_questions": []
+  },
+  "failure": null
+}
+```
+
+Expected optional AI failures use `status: "failed"`, `payload: null` and a
+`failure.kind` of `configuration`, `unavailable`, `timeout`,
+`invalid-response` or `unsupported`. A failed artifact is never reusable as
+success; reusable success requires `status == "complete"` and the same exact
+canonical bytes. `--force` regenerates the advisory too. The advisory does not
+write `stages.ai-advisory`, mutate `pipeline-state.json`, or create lessons,
+publications or delivery requests.
 
 To limit execution to metadata:
 

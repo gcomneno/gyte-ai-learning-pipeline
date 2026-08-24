@@ -24,6 +24,10 @@ Il progetto segue il versionamento semantico.
 - dossier `article.analysis.md`;
 - registrazione separata dei riferimenti scientifici;
 - protocollo esplicito per distinguere fonte, evidenza e inferenza.
+- advisory AI opzionale esplicito tramite `--ai-advisory`, senza mutare
+  `pipeline-state.json`, con output privato
+  `learning-source.analysis.ai.json` e identità semantica
+  `learning-source.analysis.ai`.
 
 ## [0.4.0] - 2026-08-03
 

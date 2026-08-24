@@ -107,9 +107,26 @@ L'installer crea il collegamento:
 ~/.local/bin/gyte-lesson-kindle
 ```
 
+La pipeline deterministica di base non richiede `giadaware-ai`.
+
+L'operazione opzionale `--ai-advisory` richiede che il package `giadaware-ai`
+sia importabile dallo stesso interprete Python usato da
+`gyte-lesson-kindle`. GiadaWare AI è attualmente distribuito separatamente e
+non è pubblicato su PyPI; il relativo wheel deve essere installato seguendo le
+istruzioni di installazione del repository `giadaware-ai`. L'installer GYTE
+intenzionalmente non cerca checkout sibling, non modifica `PYTHONPATH` per
+package esterni e non installa automaticamente questa dipendenza opzionale.
+
+Se `giadaware-ai` o la sua composizione Ollama non sono importabili,
+`--ai-advisory` registra un fallimento opzionale `configuration` preservando
+la preparation deterministica già riuscita.
+
 ## Principi
 
-Le capability AI sono opzionali e advisory. L'output AI non costituisce mai autorità editoriale e l'assenza o il fallimento dell'AI non deve impedire alla pipeline deterministica di base di continuare.
+Le capability AI sono opzionali e advisory. L'output AI non costituisce mai
+autorità editoriale e l'assenza o il fallimento dell'AI non deve impedire alla
+pipeline deterministica di base di continuare. Gli advisory AI sono operazioni
+esplicite e non sono fasi numerate né autorità di stato della pipeline.
 
 - pipeline riavviabile;
 - nessuna sovrascrittura silenziosa;
@@ -151,6 +168,66 @@ La fase produce o adotta in modo riavviabile:
 - `transcript.normalized.txt`
 - `transcript.analysis.txt`
 - `transcript.analysis.md`
+
+## Advisory AI opzionale
+
+L'advisory AI è richiesto solo esplicitamente:
+
+```bash
+GYTE_AI_MODEL="qwen2.5:1.5b-instruct" \
+gyte-lesson-kindle --ai-advisory URL
+```
+
+Per articoli e video usa solo il materiale di analisi preparato corrente:
+
+- `transcript.analysis.md` per YouTube;
+- `article.analysis.md` per articoli.
+
+L'input canonico deve essere un figlio diretto del workspace, un file regolare,
+non un symlink, non vuoto e UTF-8 valido. I byte esatti dell'input producono
+SHA-256 e byte count prima della decodifica e dell'invio alla capability
+semantica `analyze_learning_source(text)`.
+
+L'operazione scrive atomically:
+
+```text
+WORKSPACE/learning-source.analysis.ai.json
+```
+
+Il nome file e l'identità semantica dell'artefatto sono distinti. L'envelope
+contiene:
+
+```json
+{
+  "schema_version": 1,
+  "artifact": "learning-source.analysis.ai",
+  "authority": "ai-advisory",
+  "status": "complete",
+  "provenance": {
+    "source_type": "youtube|article",
+    "canonical_input": "transcript.analysis.md|article.analysis.md",
+    "canonical_input_sha256": "...",
+    "canonical_input_byte_count": 123
+  },
+  "payload": {
+    "central_thesis": "...",
+    "key_concepts": [],
+    "source_claims": [],
+    "practical_applications": [],
+    "limitations": [],
+    "review_questions": []
+  },
+  "failure": null
+}
+```
+
+Un fallimento AI opzionale usa `status: "failed"`, `payload: null` e
+`failure.kind` tra `configuration`, `unavailable`, `timeout`,
+`invalid-response` e `unsupported`. Un artefatto fallito non è riusabile come
+successo; un successo riusabile richiede `status == "complete"` e gli stessi
+byte canonici. `--force` rigenera anche l'advisory. L'advisory non scrive
+`stages.ai-advisory`, non muta `pipeline-state.json`, non crea lezioni,
+pubblicazioni o consegne.
 
 Per limitarsi ai metadati:
 

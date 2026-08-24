@@ -13,7 +13,9 @@ Provides the general building blocks for obtaining and preparing text:
 
 ### GYTE AI Learning Pipeline
 
-Optional AI capabilities may assist analysis, but they do not own pipeline state or editorial authority. Their absence or failure must not invalidate already-valid deterministic stages.
+Optional AI capabilities may assist analysis, but they do not own pipeline
+state or editorial authority. Their absence or failure must not invalidate
+already-valid deterministic stages.
 
 Orchestrates the study and editorial workflow:
 
@@ -114,6 +116,10 @@ unless explicitly requested with options such as:
 --rebuild epub
 ```
 
+The optional `--ai-advisory` operation is intentionally outside the numbered
+stage list. It produces a private advisory artifact without pipeline-state
+authority.
+
 ## Dependencies
 
 The initial version uses only:
@@ -150,6 +156,66 @@ The `prepare` stage:
 - generates the Markdown uploaded for editorial review;
 - adopts complete existing outputs without rewriting them;
 - records the `transcribe` and `prepare` stages in the state file.
+
+### Optional AI advisory
+
+`--ai-advisory SOURCE_URL` is an explicit non-stateful operation after
+deterministic preparation. It does not run during review, publication or
+delivery, and it does not create a lesson source, publication artifact, Kindle
+request or `stages.ai-advisory` state entry.
+
+The canonical input is source-type specific and fixed:
+
+- YouTube: `transcript.analysis.md`;
+- article: `article.analysis.md`.
+
+The input must be a direct child of the private workspace. Traversal, outside
+paths, symlinks, non-regular files, missing files, empty files and invalid
+UTF-8 fail closed as deterministic `AIAdvisoryError`.
+
+For fresh advisory generation, exact input bytes are hashed and counted before
+strict UTF-8 decoding. The text is passed to the GiadaWare AI semantic
+capability through the public call:
+
+```python
+ai.analyze_learning_source(text)
+```
+
+Production composition is lazy and requires `GYTE_AI_MODEL`. Optional
+`GYTE_AI_BASE_URL` and `GYTE_AI_TIMEOUT` configure the Ollama backend. If
+`giadaware_ai` or its Ollama composition cannot be imported, the advisory
+artifact records an expected optional failure with `kind: "configuration"`.
+An actual `AIUnavailableError` maps to `kind: "unavailable"`.
+
+Only five GiadaWare AI expected failures are converted to advisory failures:
+
+- `AIConfigurationError` -> `configuration`;
+- `AIUnavailableError` -> `unavailable`;
+- `AITimeoutError` -> `timeout`;
+- `AIInvalidResponseError` -> `invalid-response`;
+- `AIUnsupportedCapabilityError` -> `unsupported`.
+
+Unexpected exceptions are not converted to availability failures. Malformed
+local integration results fail closed as `AIAdvisoryError`, except for the real
+GiadaWare AI `AIInvalidResponseError` path, which remains an expected
+`invalid-response` advisory failure.
+
+The filesystem output is:
+
+```text
+WORKSPACE/learning-source.analysis.ai.json
+```
+
+The envelope's semantic artifact identity is:
+
+```json
+"artifact": "learning-source.analysis.ai"
+```
+
+Reusable success requires `status == "complete"` and exact provenance match:
+source type, canonical input filename, SHA-256 and byte count. Failed artifacts
+are never reusable as success. Same-length byte changes invalidate reuse
+because SHA-256 is checked.
 
 ### Review stage
 
