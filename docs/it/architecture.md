@@ -152,8 +152,35 @@ La fase `publish`:
 - valida struttura EPUB e testo recuperabile;
 - valida il testo recuperabile dal PDF;
 - conserva gli output precedenti con backup timestampati;
-- genera un manifest con hash SHA-256;
+- genera `publication-manifest.json` schema v2 con hash SHA-256;
 - registra la pubblicazione nello stato della pipeline.
+
+Un `--output-dir` esplicito può collocare gli output di pubblicazione fuori dal
+workspace. Quella directory ha autorità di pubblicazione solo perché
+`publish_lesson` registra nello stato pipeline i percorsi concreti del manifest
+e dell'EPUB.
+
+Il manifest di pubblicazione v2 registra solo provenienza e integrità a
+livello di byte:
+
+- `reviewed_source.sha256` è l'hash dei byte esatti della sorgente Markdown
+  letta da `publish_lesson`;
+- `files.markdown.sha256` è l'hash dei byte esatti della copia Markdown
+  installata nella pubblicazione e deve coincidere con
+  `reviewed_source.sha256`;
+- `files.html`, `files.pdf` e `files.epub` sono artefatti di pubblicazione
+  derivati con `role` e relazioni `derived_from` esplicite;
+- `source_context.metadata_sha256`, quando presente, è solo l'hash dei byte
+  esatti di `metadata.json` osservato al momento della pubblicazione;
+- `source_context.prepared_artifacts[]` registra solo artefatti di analisi
+  preparata osservati al momento della pubblicazione e i loro hash esatti.
+
+Questi hash provano solo identità di byte. Non provano correttezza, verità
+della fonte, comprensione, revisione umana, fact-checking o che la lezione
+revisionata derivi dall'analisi preparata. Metadati e analisi preparata sono
+contesto osservato, non lineage editoriale. La relazione editoriale completa
+resta rimandata al lavoro sul checkpoint di review esplicito tracciato
+separatamente come issue #18.
 
 ### Fase delivery
 
@@ -170,6 +197,19 @@ trasferire. Il connector Gmail restituisce una ricevuta dell'invio Gmail.
 `--record-kindle-delivery RECEIPT URL` risolve il workspace dai metadati
 locali e registra tale ricevuta in modo atomico. Non esistono OAuth, SMTP,
 token o configurazioni Gmail nel repository.
+
+Delivery accetta solo una pubblicazione completa il cui manifest sia validato
+come schema v2. Il percorso EPUB del manifest deve concordare con lo stato
+publish, restare relativo dentro la directory di pubblicazione, identificare
+un EPUB regolare non vuoto, avere struttura EPUB valida e corrispondere allo
+SHA-256 registrato. Delivery non attraversa metadati, transcript, analisi
+preparata o percorsi arbitrari menzionati dal manifest.
+
+Quando la pubblicazione ha usato un `--output-dir` esterno, delivery può
+preparare l'handoff Kindle da quella directory di pubblicazione registrata
+nello stato. I valori `files.*.path` del manifest restano relativi a
+`publication-manifest.json` e non possono autorizzare accessi a percorsi non
+correlati.
 
 L'EPUB nell'outbox è sempre una copia con inode distinto dall'artefatto
 pubblicato: le due versioni non condividono contenuto modificabile. Prima di

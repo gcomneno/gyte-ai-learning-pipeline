@@ -29,26 +29,102 @@ from gyte_study_tools.delivery import (  # noqa: E402
 
 
 class DeliveryTests(unittest.TestCase):
-    def make_workspace(self, root: Path) -> tuple[Path, str]:
+    def make_workspace(
+        self,
+        root: Path,
+        publication_dir: Path | None = None,
+    ) -> tuple[Path, str]:
         workdir = root / "workspace"
-        publication = workdir / "publication"
+        workdir.mkdir(parents=True, exist_ok=True)
+        publication = (
+            publication_dir
+            if publication_dir is not None
+            else workdir / "publication"
+        )
         publication.mkdir(parents=True)
+        markdown_path = publication / "lesson.md"
+        html_path = publication / "lesson.html"
+        pdf_path = publication / "lesson.pdf"
         epub_path = publication / "lesson.epub"
+        markdown_path.write_text(
+            "# Lezione fixture\n\nContenuto revisionato sintetico.\n",
+            encoding="utf-8",
+        )
+        html_path.write_text(
+            "<!doctype html><html><body><h1>Lezione fixture</h1></body></html>\n",
+            encoding="utf-8",
+        )
+        pdf_path.write_bytes(b"%PDF-fixture")
         with zipfile.ZipFile(epub_path, "w") as archive:
             archive.writestr("mimetype", "application/epub+zip")
             archive.writestr("content.txt", "EPUB fixture senza rete")
-        digest = hashlib.sha256(epub_path.read_bytes()).hexdigest()
+        source_url = "https://www.youtube.com/watch?v=fixture"
+        metadata_path = workdir / "metadata.json"
+        metadata_bytes = json.dumps(
+            {
+                "schema_version": 1,
+                "source": {"requested_url": source_url},
+                "video": {"id": "fixture"},
+            }
+        ).encode("utf-8") + b"\n"
+        metadata_path.write_bytes(metadata_bytes)
+        markdown_digest = hashlib.sha256(markdown_path.read_bytes()).hexdigest()
+        epub_digest = hashlib.sha256(epub_path.read_bytes()).hexdigest()
         manifest_path = publication / "publication-manifest.json"
         manifest_path.write_text(
-            json.dumps({"files": {"epub": {"sha256": digest}}}) + "\n",
-            encoding="utf-8",
-        )
-        source_url = "https://www.youtube.com/watch?v=fixture"
-        (workdir / "metadata.json").write_text(
             json.dumps(
                 {
-                    "source": {"requested_url": source_url},
-                    "video": {"id": "fixture"},
+                    "schema_version": 2,
+                    "published_at": "2026-08-24T00:00:00+00:00",
+                    "title": "Lezione fixture",
+                    "author": "Autore fixture",
+                    "source_context": {
+                        "relationship": "observed-at-publication-time",
+                        "source_type": "youtube",
+                        "source_id_kind": "youtube-video-id",
+                        "source_id": "fixture",
+                        "metadata_sha256": hashlib.sha256(metadata_bytes).hexdigest(),
+                        "prepared_artifacts": [],
+                    },
+                    "reviewed_source": {
+                        "role": "reviewed-source-snapshot",
+                        "sha256": markdown_digest,
+                        "copied_to": "markdown",
+                        "h1": "Lezione fixture",
+                    },
+                    "files": {
+                        "markdown": {
+                            "path": markdown_path.name,
+                            "role": "reviewed-source-copy",
+                            "sha256": markdown_digest,
+                        },
+                        "html": {
+                            "path": html_path.name,
+                            "role": "derived-publication-html",
+                            "derived_from": "markdown",
+                            "sha256": hashlib.sha256(
+                                html_path.read_bytes()
+                            ).hexdigest(),
+                        },
+                        "pdf": {
+                            "path": pdf_path.name,
+                            "role": "derived-publication-pdf",
+                            "derived_from": "html",
+                            "sha256": hashlib.sha256(
+                                pdf_path.read_bytes()
+                            ).hexdigest(),
+                            "words": 4,
+                        },
+                        "epub": {
+                            "path": epub_path.name,
+                            "role": "derived-publication-epub",
+                            "derived_from": "html",
+                            "sha256": epub_digest,
+                            "words": 4,
+                        },
+                    },
+                    "source_words": 4,
+                    "backups": {},
                 }
             )
             + "\n",
@@ -83,6 +159,18 @@ class DeliveryTests(unittest.TestCase):
     def write_request(self, workdir: Path, request: dict[str, object]) -> None:
         self.request_path(workdir).write_text(
             json.dumps(request) + "\n",
+            encoding="utf-8",
+        )
+
+    def manifest_path(self, workdir: Path) -> Path:
+        return workdir / "publication" / "publication-manifest.json"
+
+    def read_manifest(self, workdir: Path) -> dict[str, object]:
+        return json.loads(self.manifest_path(workdir).read_text(encoding="utf-8"))
+
+    def write_manifest(self, workdir: Path, manifest: dict[str, object]) -> None:
+        self.manifest_path(workdir).write_text(
+            json.dumps(manifest) + "\n",
             encoding="utf-8",
         )
 
@@ -150,6 +238,35 @@ class DeliveryTests(unittest.TestCase):
             self.assertEqual(
                 state["stages"]["delivery"]["request_id"], request["request_id"]
             )
+
+    def test_prepare_supports_publication_from_external_output_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            publication_dir = root / "external-publication"
+            workdir, _ = self.make_workspace(
+                root,
+                publication_dir=publication_dir,
+            )
+            result = prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+            self.assertEqual(
+                Path(result.request["publication_manifest_path"]),
+                publication_dir / "publication-manifest.json",
+            )
+            self.assertTrue(Path(result.request["attachment_path"]).is_file())
+            self.assertEqual(result.request["video_id"], "fixture")
+
+    def test_prepare_does_not_require_metadata_json_for_delivery_validation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir, _ = self.make_workspace(Path(temporary))
+            (workdir / "metadata.json").unlink()
+
+            result = prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+            self.assertEqual(result.request["status"], "pending")
+            self.assertEqual(result.request["video_id"], "fixture")
 
     def test_outbox_is_an_independent_copy_of_the_published_epub(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -429,13 +546,15 @@ class DeliveryTests(unittest.TestCase):
     def test_prepare_preserves_article_source_type(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workdir, _ = self.make_workspace(Path(temporary))
-            metadata_path = workdir / "metadata.json"
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            metadata["source_type"] = "article"
-            metadata_path.write_text(json.dumps(metadata) + "\n", encoding="utf-8")
+            manifest = self.read_manifest(workdir)
+            manifest["source_context"]["source_type"] = "article"
+            manifest["source_context"]["source_id_kind"] = "article-source-id"
+            manifest["source_context"]["source_id"] = "article-fixture"
+            self.write_manifest(workdir, manifest)
 
             delivery = prepare_kindle_delivery(workdir, "reader@kindle.com")
             self.assertEqual(delivery.request["source_type"], "article")
+            self.assertEqual(delivery.request["source_id"], "article-fixture")
 
     def test_prepare_requires_completed_and_validated_publication(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -447,6 +566,80 @@ class DeliveryTests(unittest.TestCase):
 
             with self.assertRaises(DeliveryError):
                 prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+    def test_prepare_rejects_legacy_or_missing_publication_manifest_version(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir, _ = self.make_workspace(Path(temporary))
+            manifest = self.read_manifest(workdir)
+
+            for schema_version in (1, None):
+                with self.subTest(schema_version=schema_version):
+                    mutated = json.loads(json.dumps(manifest))
+                    if schema_version is None:
+                        del mutated["schema_version"]
+                    else:
+                        mutated["schema_version"] = schema_version
+                    self.write_manifest(workdir, mutated)
+
+                    with self.assertRaisesRegex(
+                        DeliveryError,
+                        "Manifest di pubblicazione legacy/non supportato",
+                    ):
+                        prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+    def test_prepare_rejects_state_epub_path_disagreement(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir, _ = self.make_workspace(Path(temporary))
+            other_epub = workdir / "publication" / "other.epub"
+            with zipfile.ZipFile(other_epub, "w") as archive:
+                archive.writestr("mimetype", "application/epub+zip")
+            state_path = workdir / "pipeline-state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["stages"]["publish"]["outputs"]["epub"] = str(other_epub)
+            state_path.write_text(json.dumps(state) + "\n", encoding="utf-8")
+
+            with self.assertRaises(DeliveryError):
+                prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+    def test_prepare_rejects_unsafe_manifest_epub_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir, _ = self.make_workspace(Path(temporary))
+            manifest = self.read_manifest(workdir)
+
+            for unsafe_path in ("../lesson.epub", str(workdir / "lesson.epub")):
+                with self.subTest(unsafe_path=unsafe_path):
+                    mutated = json.loads(json.dumps(manifest))
+                    mutated["files"]["epub"]["path"] = unsafe_path
+                    self.write_manifest(workdir, mutated)
+
+                    with self.assertRaises(DeliveryError):
+                        prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+    def test_prepare_rejects_tampered_published_epub(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir, _ = self.make_workspace(Path(temporary))
+            (workdir / "publication" / "lesson.epub").write_bytes(b"EPUB manomesso")
+
+            with self.assertRaises(DeliveryError):
+                prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+    def test_delivery_failure_does_not_rewrite_completed_publish_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workdir, _ = self.make_workspace(Path(temporary))
+            state_path = workdir / "pipeline-state.json"
+            before = json.loads(state_path.read_text(encoding="utf-8"))
+            manifest = self.read_manifest(workdir)
+            manifest["files"]["epub"]["sha256"] = "0" * 64
+            self.write_manifest(workdir, manifest)
+
+            with self.assertRaises(DeliveryError):
+                prepare_kindle_delivery(workdir, "reader@kindle.com")
+
+            after = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(after["stages"]["publish"], before["stages"]["publish"])
+            self.assertEqual(after["stages"]["publish"]["status"], "complete")
 
 
 if __name__ == "__main__":

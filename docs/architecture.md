@@ -152,8 +152,32 @@ The `publish` stage:
 - validates EPUB structure and recoverable text;
 - validates recoverable text from the PDF;
 - preserves previous outputs with timestamped backups;
-- generates a manifest with SHA-256 hashes;
+- generates `publication-manifest.json` schema v2 with SHA-256 hashes;
 - records publication in pipeline state.
+
+An explicit `--output-dir` may place publication outputs outside the workspace.
+That directory is publication authority only because `publish_lesson` records
+the concrete manifest and EPUB paths in pipeline state.
+
+Publication manifest v2 records byte-level provenance and integrity only:
+
+- `reviewed_source.sha256` is the exact byte hash of the Markdown source read
+  by `publish_lesson`;
+- `files.markdown.sha256` is the exact byte hash of the installed publication
+  Markdown copy and must equal `reviewed_source.sha256`;
+- `files.html`, `files.pdf` and `files.epub` are derived publication
+  artifacts with explicit `role` and `derived_from` relationships;
+- `source_context.metadata_sha256`, when present, is only the exact byte hash
+  of `metadata.json` observed at publication time;
+- `source_context.prepared_artifacts[]` records only prepared-analysis
+  artifacts observed at publication time and their exact byte hashes.
+
+These hashes prove byte identity only. They do not prove correctness, source
+truth, comprehension, human review, fact-checking or that the reviewed lesson
+was derived from prepared analysis. Metadata and prepared analysis are observed
+context, not editorial lineage. The full editorial relationship remains
+deferred to the explicit review checkpoint work tracked separately as issue
+#18.
 
 ### Delivery stage
 
@@ -172,6 +196,18 @@ transfer. The Gmail connector returns a receipt for the Gmail send operation.
 `--record-kindle-delivery RECEIPT URL` resolves the workspace from local
 metadata and records that receipt atomically. The repository contains no OAuth,
 SMTP, token or Gmail configuration.
+
+Delivery accepts only a completed publication whose manifest is validated as
+schema v2. The manifest EPUB path must agree with publish state, remain
+relative inside the publication directory, identify a non-empty regular EPUB,
+have valid EPUB structure and match the recorded SHA-256. Delivery does not
+walk metadata, transcript, prepared-analysis or arbitrary manifest-mentioned
+paths.
+
+When publication used an external `--output-dir`, delivery may prepare the
+Kindle handoff from that state-recorded publication directory. The manifest's
+own `files.*.path` values remain relative to `publication-manifest.json` and
+cannot grant access to unrelated paths.
 
 The EPUB in the outbox is always a copy with a different inode from the
 published artifact: the two versions do not share mutable content. Before a

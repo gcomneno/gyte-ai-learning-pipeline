@@ -77,6 +77,22 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.kindle_email, "reader@kindle.com")
         self.assertIsNone(args.record_kindle_delivery)
 
+    def test_output_dir_and_kindle_delivery_are_parsed_together(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--publish-from",
+                "/tmp/lesson.md",
+                "--output-dir",
+                "/tmp/publication",
+                "--kindle-email",
+                "reader@kindle.com",
+                "https://www.youtube.com/watch?v=example",
+            ]
+        )
+
+        self.assertEqual(args.output_dir, Path("/tmp/publication"))
+        self.assertEqual(args.kindle_email, "reader@kindle.com")
+
     def test_record_delivery_option_is_parsed(self) -> None:
         args = build_parser().parse_args(
             [
