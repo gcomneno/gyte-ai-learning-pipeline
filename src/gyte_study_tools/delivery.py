@@ -23,6 +23,7 @@ from gyte_study_tools.publishing import (
     PublicationError,
     sha256_file,
     validate_epub,
+    validate_publication_manifest_for_delivery,
 )
 
 
@@ -83,6 +84,23 @@ def path_is_within(path: Path, directory: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def resolve_publish_state_path(workdir: Path, value: Any, label: str) -> Path:
+    if not isinstance(value, str) or not value:
+        raise DeliveryError(f"{label} assente nello stato publish.")
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute() and ".." in candidate.parts:
+        raise DeliveryError(f"{label} contiene traversal non autorizzato.")
+    if candidate.is_absolute():
+        raw_path = candidate
+    else:
+        raw_path = workdir / candidate
+    try:
+        resolved_path = raw_path.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise DeliveryError(f"{label} non è risolvibile.") from error
+    return resolved_path
 
 
 def require_nonempty_string(request: dict[str, Any], field: str) -> str:
@@ -242,7 +260,7 @@ def read_delivery_request(request_path: Path) -> dict[str, Any]:
     return read_json_object(request_path, "Richiesta di consegna")
 
 
-def validated_publication(workdir: Path) -> tuple[Path, Path, dict[str, Any]]:
+def validated_publication(workdir: Path) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
     """Locate the current EPUB only when its completed manifest validates it."""
     state_path = workdir / "pipeline-state.json"
     state = load_state(state_path)
@@ -258,18 +276,26 @@ def validated_publication(workdir: Path) -> tuple[Path, Path, dict[str, Any]]:
     if not isinstance(outputs, dict):
         raise DeliveryError("Lo stato publish non contiene gli output validati.")
 
-    manifest_path = Path(str(outputs.get("manifest", ""))).expanduser()
-    epub_path = Path(str(outputs.get("epub", ""))).expanduser()
-    if not manifest_path.is_absolute():
-        manifest_path = workdir / manifest_path
-    if not epub_path.is_absolute():
-        epub_path = workdir / epub_path
+    manifest_path = resolve_publish_state_path(
+        workdir,
+        outputs.get("manifest"),
+        "Manifest di pubblicazione",
+    )
+    epub_path = resolve_publish_state_path(
+        workdir,
+        outputs.get("epub"),
+        "EPUB pubblicato",
+    )
 
-    manifest = read_json_object(manifest_path, "Manifest di pubblicazione")
-    files = manifest.get("files")
-    epub_record = files.get("epub") if isinstance(files, dict) else None
-    if not isinstance(epub_record, dict):
-        raise DeliveryError("Il manifest non contiene l'EPUB pubblicato.")
+    try:
+        manifest = validate_publication_manifest_for_delivery(
+            manifest_path,
+            expected_epub_path=epub_path,
+        )
+    except PublicationError as error:
+        raise DeliveryError(str(error)) from error
+
+    epub_record = manifest["files"]["epub"]
     try:
         if not epub_path.is_file() or epub_path.stat().st_size == 0:
             raise DeliveryError(f"EPUB pubblicato assente o vuoto: {epub_path}")
@@ -289,7 +315,7 @@ def validated_publication(workdir: Path) -> tuple[Path, Path, dict[str, Any]]:
     if not isinstance(expected_hash, str) or actual_hash != expected_hash:
         raise DeliveryError("L'hash dell'EPUB non corrisponde al manifest.")
 
-    return epub_path, manifest_path, state
+    return epub_path, manifest_path, state, manifest
 
 
 def backup_existing(path: Path) -> Path | None:
@@ -366,15 +392,39 @@ def install_attachment(source: Path, destination: Path, expected_hash: str) -> N
             temporary.unlink()
 
 
-def source_details(workdir: Path, state: dict[str, Any]) -> dict[str, str]:
-    metadata = read_json_object(workdir / "metadata.json", "Metadati")
-    source_type = metadata.get("source_type") or state.get("source_type")
+def source_details(
+    state: dict[str, Any],
+    manifest: dict[str, Any],
+) -> dict[str, str]:
+    context = manifest.get("source_context")
+    source_type = None
+    source_id_kind = None
+    source_id = None
+    if isinstance(context, dict):
+        source_type = context.get("source_type")
+        source_id_kind = context.get("source_id_kind")
+        source_id = context.get("source_id")
+    if not isinstance(source_type, str) or not source_type:
+        source_type = state.get("source_type")
     details: dict[str, str] = {
         "source_type": source_type if isinstance(source_type, str) else "youtube"
     }
-    video = metadata.get("video")
-    if isinstance(video, dict) and isinstance(video.get("id"), str):
-        details["video_id"] = video["id"]
+    if (
+        source_id_kind == "youtube-video-id"
+        and isinstance(source_id, str)
+        and source_id
+        and source_id != "unavailable"
+    ):
+        details["video_id"] = source_id
+    elif (
+        source_id_kind == "article-source-id"
+        and isinstance(source_id, str)
+        and source_id
+        and source_id != "unavailable"
+    ):
+        details["source_id"] = source_id
+    elif isinstance(state.get("video_id"), str):
+        details["video_id"] = state["video_id"]
     elif isinstance(state.get("source_id"), str):
         details["source_id"] = state["source_id"]
     return details
@@ -424,7 +474,7 @@ def prepare_kindle_delivery(workdir: Path, recipient: str) -> DeliveryResult:
     """Prepare a pending request for transfer to the connector environment."""
     workdir = workdir.expanduser().resolve()
     recipient = validate_kindle_email(recipient)
-    epub_path, manifest_path, state = validated_publication(workdir)
+    epub_path, manifest_path, state, manifest = validated_publication(workdir)
     attachment_sha256 = sha256_file(epub_path)
     request_id = request_id_for(recipient, attachment_sha256)
     delivery_dir = workdir / "delivery"
@@ -477,7 +527,7 @@ def prepare_kindle_delivery(workdir: Path, recipient: str) -> DeliveryResult:
         "attachment_bytes": attachment_path.stat().st_size,
         "publication_manifest_path": str(manifest_path),
     }
-    request.update(source_details(workdir, state))
+    request.update(source_details(state, manifest))
     validate_delivery_request(
         workdir,
         request,

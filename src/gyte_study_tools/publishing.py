@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -22,6 +23,13 @@ from gyte_study_tools.inspection import atomic_write_text, load_state
 DEFAULT_AUTHOR = "Giancarlo e ChatGPT"
 BACKTICK = chr(96)
 MARKDOWN_FENCE = BACKTICK * 3
+MANIFEST_SCHEMA_VERSION = 2
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+PREPARED_ANALYSIS_NAMES = (
+    "transcript.analysis.md",
+    "article.analysis.md",
+    "transcript.analysis.txt",
+)
 
 
 class PublicationError(RuntimeError):
@@ -87,6 +95,25 @@ def sha256_file(path: Path) -> str:
             digest.update(chunk)
 
     return digest.hexdigest()
+
+
+def atomic_write_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def extract_heading(markdown: str) -> str:
@@ -422,6 +449,353 @@ def validate_epub(path: Path) -> None:
         ) from error
 
 
+def path_is_within(path: Path, directory: Path) -> bool:
+    try:
+        path.relative_to(directory)
+    except ValueError:
+        return False
+    return True
+
+
+def read_json_object(path: Path, label: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise PublicationError(f"{label} assente: {path}") from error
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise PublicationError(f"{label} illeggibile: {path}") from error
+
+    if not isinstance(value, dict):
+        raise PublicationError(f"{label} non contiene un oggetto JSON: {path}")
+
+    return value
+
+
+def observed_json_object(path: Path) -> tuple[dict[str, Any], str] | None:
+    if not path.is_file() or path.is_symlink():
+        return None
+
+    try:
+        content = path.read_bytes()
+        value = json.loads(content.decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(value, dict):
+        return None
+
+    return value, hashlib.sha256(content).hexdigest()
+
+
+def source_identity(
+    metadata: dict[str, Any] | None,
+    state: dict[str, Any],
+) -> tuple[str, str, str]:
+    source_type = None
+    if metadata is not None and isinstance(metadata.get("source_type"), str):
+        source_type = metadata["source_type"]
+    elif isinstance(state.get("source_type"), str):
+        source_type = state["source_type"]
+
+    if source_type == "article":
+        source_id = state.get("source_id")
+        return (
+            "article",
+            "article-source-id",
+            source_id if isinstance(source_id, str) and source_id else "unavailable",
+        )
+
+    video_id = None
+    if metadata is not None:
+        video = metadata.get("video")
+        if isinstance(video, dict) and isinstance(video.get("id"), str):
+            video_id = video["id"]
+    if video_id is None and isinstance(state.get("video_id"), str):
+        video_id = state["video_id"]
+
+    return (
+        source_type if isinstance(source_type, str) and source_type else "youtube",
+        "youtube-video-id",
+        video_id if isinstance(video_id, str) and video_id else "unavailable",
+    )
+
+
+def safe_relative_name(path: Path, base: Path) -> str:
+    try:
+        relative = path.relative_to(base)
+    except ValueError:
+        return path.name
+
+    value = relative.as_posix()
+    return path.name if value.startswith("../") else value
+
+
+def build_source_context(workdir: Path, state: dict[str, Any]) -> dict[str, Any]:
+    metadata_observation = observed_json_object(workdir / "metadata.json")
+    metadata = metadata_observation[0] if metadata_observation is not None else None
+    source_type, source_id_kind, source_id = source_identity(metadata, state)
+    context: dict[str, Any] = {
+        "relationship": "observed-at-publication-time",
+        "source_type": source_type,
+        "source_id_kind": source_id_kind,
+        "source_id": source_id,
+        "prepared_artifacts": [],
+    }
+    if metadata_observation is not None:
+        context["metadata_sha256"] = metadata_observation[1]
+
+    prepared_artifacts: list[dict[str, str]] = []
+    for name in PREPARED_ANALYSIS_NAMES:
+        artifact = workdir / name
+        if artifact.is_file() and not artifact.is_symlink():
+            prepared_artifacts.append(
+                {
+                    "role": "prepared-analysis",
+                    "name": safe_relative_name(artifact, workdir),
+                    "sha256": sha256_file(artifact),
+                }
+            )
+    context["prepared_artifacts"] = prepared_artifacts
+    return context
+
+
+def require_sha256(value: Any, label: str) -> str:
+    if not isinstance(value, str) or SHA256_PATTERN.fullmatch(value) is None:
+        raise PublicationError(f"{label} non è uno SHA-256 valido.")
+    return value
+
+
+def confined_relative_path(base: Path, value: Any, label: str) -> Path:
+    if not isinstance(value, str) or not value:
+        raise PublicationError(f"{label} deve essere un percorso relativo non vuoto.")
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise PublicationError(f"{label} deve restare relativo e confinato.")
+    if any(part in {"", "."} for part in relative.parts):
+        raise PublicationError(f"{label} contiene segmenti non validi.")
+
+    try:
+        resolved_base = base.resolve(strict=False)
+        resolved_path = (base / relative).resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise PublicationError(f"{label} non è risolvibile.") from error
+
+    if not path_is_within(resolved_path, resolved_base):
+        raise PublicationError(f"{label} esce dalla directory di pubblicazione.")
+    return resolved_path
+
+
+def validate_regular_file_hash(path: Path, expected_hash: str, label: str) -> None:
+    if path.is_symlink():
+        raise PublicationError(f"{label} non può essere un symlink.")
+    try:
+        if not path.is_file() or path.stat().st_size == 0:
+            raise PublicationError(f"{label} assente o vuoto: {path}")
+        actual_hash = sha256_file(path)
+    except OSError as error:
+        raise PublicationError(f"{label} illeggibile: {path}") from error
+    if actual_hash != expected_hash:
+        raise PublicationError(f"{label} non corrisponde allo SHA-256 del manifest.")
+
+
+def validate_source_context(
+    manifest: dict[str, Any],
+    *,
+    workdir: Path | None,
+    full_validation: bool,
+) -> None:
+    context = manifest.get("source_context")
+    if not isinstance(context, dict):
+        raise PublicationError("Il manifest non contiene source_context valido.")
+    if context.get("relationship") != "observed-at-publication-time":
+        raise PublicationError("source_context.relationship non valido.")
+    for field in ("source_type", "source_id_kind", "source_id"):
+        if not isinstance(context.get(field), str) or not context[field]:
+            raise PublicationError(f"source_context.{field} non valido.")
+    if "metadata_sha256" in context:
+        metadata_hash = require_sha256(
+            context["metadata_sha256"],
+            "source_context.metadata_sha256",
+        )
+        if workdir is not None and full_validation:
+            validate_regular_file_hash(
+                workdir / "metadata.json",
+                metadata_hash,
+                "metadata.json",
+            )
+
+    prepared = context.get("prepared_artifacts")
+    if not isinstance(prepared, list):
+        raise PublicationError("source_context.prepared_artifacts non è una lista.")
+    for index, artifact in enumerate(prepared):
+        label = f"source_context.prepared_artifacts[{index}]"
+        if not isinstance(artifact, dict):
+            raise PublicationError(f"{label} non è un oggetto.")
+        if artifact.get("role") != "prepared-analysis":
+            raise PublicationError(f"{label}.role non valido.")
+        name = artifact.get("name")
+        require_sha256(artifact.get("sha256"), f"{label}.sha256")
+        if workdir is None:
+            if not isinstance(name, str) or Path(name).is_absolute() or ".." in Path(name).parts:
+                raise PublicationError(f"{label}.name non è sicuro.")
+            continue
+        artifact_path = confined_relative_path(workdir, name, f"{label}.name")
+        if full_validation:
+            validate_regular_file_hash(artifact_path, artifact["sha256"], label)
+
+
+def validate_manifest_files(
+    manifest: dict[str, Any],
+    manifest_dir: Path,
+    *,
+    expected_epub_path: Path | None,
+    full_validation: bool,
+) -> dict[str, Path]:
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        raise PublicationError("Il manifest non contiene files valido.")
+
+    expected = {
+        "markdown": ("reviewed-source-copy", None),
+        "html": ("derived-publication-html", "markdown"),
+        "pdf": ("derived-publication-pdf", "html"),
+        "epub": ("derived-publication-epub", "html"),
+    }
+    resolved: dict[str, Path] = {}
+
+    for key, (role, derived_from) in expected.items():
+        record = files.get(key)
+        if not isinstance(record, dict):
+            raise PublicationError(f"files.{key} mancante o non valido.")
+        if record.get("role") != role:
+            raise PublicationError(f"files.{key}.role non valido.")
+        if derived_from is None:
+            if "derived_from" in record:
+                raise PublicationError(f"files.{key}.derived_from non ammesso.")
+        elif record.get("derived_from") != derived_from:
+            raise PublicationError(f"files.{key}.derived_from non valido.")
+        expected_hash = require_sha256(record.get("sha256"), f"files.{key}.sha256")
+        resolved_path = confined_relative_path(
+            manifest_dir,
+            record.get("path"),
+            f"files.{key}.path",
+        )
+        resolved[key] = resolved_path
+
+        if full_validation or key == "epub":
+            validate_regular_file_hash(resolved_path, expected_hash, f"files.{key}")
+            if key == "epub":
+                try:
+                    validate_epub(resolved_path)
+                except PublicationError as error:
+                    raise PublicationError("files.epub non è un EPUB valido.") from error
+
+    if expected_epub_path is not None:
+        try:
+            expected_resolved = expected_epub_path.expanduser().resolve(strict=False)
+        except (OSError, RuntimeError) as error:
+            raise PublicationError("Percorso EPUB atteso non risolvibile.") from error
+        if resolved["epub"] != expected_resolved:
+            raise PublicationError(
+                "Il percorso EPUB del manifest non corrisponde allo stato publish."
+            )
+
+    reviewed = manifest.get("reviewed_source")
+    if not isinstance(reviewed, dict):
+        raise PublicationError("Il manifest non contiene reviewed_source valido.")
+    if reviewed.get("role") != "reviewed-source-snapshot":
+        raise PublicationError("reviewed_source.role non valido.")
+    if reviewed.get("copied_to") != "markdown":
+        raise PublicationError("reviewed_source.copied_to non valido.")
+    if not isinstance(reviewed.get("h1"), str) or not reviewed["h1"].strip():
+        raise PublicationError("reviewed_source.h1 non valido.")
+    reviewed_hash = require_sha256(reviewed.get("sha256"), "reviewed_source.sha256")
+    markdown_hash = files["markdown"]["sha256"]
+    if reviewed_hash != markdown_hash:
+        raise PublicationError(
+            "reviewed_source.sha256 non corrisponde a files.markdown.sha256."
+        )
+
+    return resolved
+
+
+def validate_manifest_backups(manifest: dict[str, Any], manifest_dir: Path) -> None:
+    backups = manifest.get("backups")
+    if not isinstance(backups, dict):
+        raise PublicationError("Il manifest non contiene backups valido.")
+    for destination, backup in backups.items():
+        confined_relative_path(manifest_dir, destination, "backups destination")
+        confined_relative_path(manifest_dir, backup, "backups backup")
+
+
+def validate_manifest_v2_structure(
+    manifest_path: Path,
+    *,
+    workdir: Path | None,
+    expected_epub_path: Path | None,
+    full_validation: bool,
+) -> dict[str, Any]:
+    if manifest_path.is_symlink():
+        raise PublicationError("Il manifest di pubblicazione non può essere un symlink.")
+    manifest = read_json_object(manifest_path, "Manifest di pubblicazione")
+    schema_version = manifest.get("schema_version")
+    if type(schema_version) is not int or schema_version != MANIFEST_SCHEMA_VERSION:
+        raise PublicationError(
+            "Manifest di pubblicazione legacy/non supportato: "
+            "ripubblicare per creare il manifest v2."
+        )
+
+    manifest_dir = manifest_path.parent.resolve(strict=False)
+    for field in ("published_at", "title", "author"):
+        if not isinstance(manifest.get(field), str) or not manifest[field].strip():
+            raise PublicationError(f"{field} non valido nel manifest.")
+    if type(manifest.get("source_words")) is not int or manifest["source_words"] <= 0:
+        raise PublicationError("source_words non valido nel manifest.")
+
+    validate_source_context(
+        manifest,
+        workdir=workdir,
+        full_validation=full_validation,
+    )
+    validate_manifest_files(
+        manifest,
+        manifest_dir,
+        expected_epub_path=expected_epub_path,
+        full_validation=full_validation,
+    )
+    validate_manifest_backups(manifest, manifest_dir)
+    return manifest
+
+
+def validate_publication_manifest(
+    manifest_path: Path,
+    *,
+    workdir: Path | None = None,
+    expected_epub_path: Path | None = None,
+) -> dict[str, Any]:
+    """Validate manifest v2 plus all current publication/provenance bytes."""
+    return validate_manifest_v2_structure(
+        manifest_path,
+        workdir=workdir,
+        expected_epub_path=expected_epub_path,
+        full_validation=True,
+    )
+
+
+def validate_publication_manifest_for_delivery(
+    manifest_path: Path,
+    *,
+    expected_epub_path: Path,
+) -> dict[str, Any]:
+    """Validate manifest v2 only for delivery authority over the EPUB."""
+    return validate_manifest_v2_structure(
+        manifest_path,
+        workdir=None,
+        expected_epub_path=expected_epub_path,
+        full_validation=False,
+    )
+
+
 def build_converted_outputs(
     html_path: Path,
     pdf_path: Path,
@@ -610,7 +984,13 @@ def publish_lesson(
             f"Lezione sorgente Markdown non trovata: {source_path}"
         )
 
-    markdown = source_path.read_text(encoding="utf-8")
+    try:
+        source_bytes = source_path.read_bytes()
+        markdown = source_bytes.decode("utf-8")
+    except UnicodeError as error:
+        raise PublicationError(
+            "La lezione sorgente Markdown deve essere UTF-8 valido."
+        ) from error
 
     if not markdown.strip():
         raise PublicationError("La lezione sorgente Markdown è vuota.")
@@ -635,6 +1015,7 @@ def publish_lesson(
 
     html_document = render_document(markdown, title, author)
     source_words = count_words(visible_html_text(html_document))
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
 
     if source_words == 0:
         raise PublicationError(
@@ -678,35 +1059,53 @@ def publish_lesson(
             backup = backup_existing(destination, timestamp)
 
             if backup is not None:
-                backups[str(destination)] = str(backup)
+                backups[
+                    safe_relative_name(destination, publication_dir)
+                ] = safe_relative_name(backup, publication_dir)
 
-        atomic_write_text(markdown_path, markdown)
+        atomic_write_bytes(markdown_path, source_bytes)
         atomic_write_text(html_path, html_document)
         temporary_pdf.replace(pdf_path)
         temporary_epub.replace(epub_path)
 
     now = datetime.now(timezone.utc).isoformat()
+    state = load_state(state_path)
+    markdown_sha256 = sha256_file(markdown_path)
     manifest = {
-        "schema_version": 1,
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "published_at": now,
         "title": title,
         "author": author,
+        "source_context": build_source_context(workdir, state),
+        "reviewed_source": {
+            "role": "reviewed-source-snapshot",
+            "sha256": source_sha256,
+            "copied_to": "markdown",
+            "h1": heading,
+        },
         "files": {
             "markdown": {
                 "path": markdown_path.name,
-                "sha256": sha256_file(markdown_path),
+                "role": "reviewed-source-copy",
+                "sha256": markdown_sha256,
             },
             "html": {
                 "path": html_path.name,
+                "role": "derived-publication-html",
+                "derived_from": "markdown",
                 "sha256": sha256_file(html_path),
             },
             "pdf": {
                 "path": pdf_path.name,
+                "role": "derived-publication-pdf",
+                "derived_from": "html",
                 "sha256": sha256_file(pdf_path),
                 "words": metrics.pdf_words,
             },
             "epub": {
                 "path": epub_path.name,
+                "role": "derived-publication-epub",
+                "derived_from": "html",
                 "sha256": sha256_file(epub_path),
                 "words": metrics.epub_words,
             },
@@ -718,6 +1117,11 @@ def publish_lesson(
     atomic_write_text(
         manifest_path,
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    )
+    validate_publication_manifest(
+        manifest_path,
+        workdir=workdir,
+        expected_epub_path=epub_path,
     )
 
     update_publish_state(
