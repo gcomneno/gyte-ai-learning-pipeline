@@ -13,7 +13,9 @@ Fornisce i mattoni generali per ottenere e preparare il testo:
 
 ### GYTE AI Learning Pipeline
 
-Le capability AI opzionali possono assistere l'analisi, ma non possiedono lo stato della pipeline né l'autorità editoriale. La loro assenza o il loro fallimento non deve invalidare fasi deterministiche già valide.
+Le capability AI opzionali possono assistere l'analisi, ma non possiedono lo
+stato della pipeline né l'autorità editoriale. La loro assenza o il loro
+fallimento non deve invalidare fasi deterministiche già valide.
 
 Orchestra il workflow didattico ed editoriale:
 
@@ -114,6 +116,10 @@ salvo richiesta esplicita con opzioni come:
 --rebuild epub
 ```
 
+L'operazione opzionale `--ai-advisory` resta intenzionalmente fuori dall'elenco
+numerato delle fasi. Produce un artefatto advisory privato senza autorità sullo
+stato della pipeline.
+
 ## Dipendenze
 
 La versione iniziale usa esclusivamente:
@@ -150,6 +156,70 @@ La fase `prepare`:
 - genera il Markdown da caricare per la revisione editoriale;
 - adotta senza riscriverli output completi già esistenti;
 - registra le fasi `transcribe` e `prepare` nel file di stato.
+
+### Advisory AI opzionale
+
+`--ai-advisory SOURCE_URL` è un'operazione esplicita e non stateful dopo la
+preparazione deterministica. Non viene eseguita durante review, pubblicazione
+o delivery e non crea lezione sorgente, artefatto di pubblicazione, richiesta
+Kindle o voce di stato `stages.ai-advisory`.
+
+L'input canonico è fisso per tipo sorgente:
+
+- YouTube: `transcript.analysis.md`;
+- articolo: `article.analysis.md`.
+
+L'input deve essere un figlio diretto del workspace privato. Traversal, path
+esterni, symlink, file non regolari, file mancanti, file vuoti e UTF-8 non
+valido falliscono in modo chiuso come `AIAdvisoryError` deterministico.
+
+Per generare un advisory fresco, i byte esatti dell'input vengono sottoposti a
+hash e conteggio prima della decodifica UTF-8 stretta. Il testo viene passato
+alla capability semantica GiadaWare AI tramite la chiamata pubblica:
+
+```python
+ai.analyze_learning_source(text)
+```
+
+La composizione di produzione è lazy e richiede `GYTE_AI_MODEL`.
+`GYTE_AI_BASE_URL` e `GYTE_AI_TIMEOUT` configurano opzionalmente il backend
+Ollama. Se `giadaware_ai` o la composizione Ollama non possono essere importati,
+l'artefatto advisory registra un fallimento opzionale atteso con
+`kind: "configuration"`. Un `AIUnavailableError` reale mappa a
+`kind: "unavailable"`.
+
+Solo cinque fallimenti GiadaWare AI attesi vengono convertiti in fallimenti
+advisory:
+
+- `AIConfigurationError` -> `configuration`;
+- `AIUnavailableError` -> `unavailable`;
+- `AITimeoutError` -> `timeout`;
+- `AIInvalidResponseError` -> `invalid-response`;
+- `AIUnsupportedCapabilityError` -> `unsupported`.
+
+Le eccezioni inattese non vengono convertite in fallimenti di disponibilità. I
+risultati locali/integration malformati falliscono in modo chiuso come
+`AIAdvisoryError`, tranne il percorso reale GiadaWare AI
+`AIInvalidResponseError`, che resta un fallimento advisory atteso
+`invalid-response`.
+
+L'output sul filesystem è:
+
+```text
+WORKSPACE/learning-source.analysis.ai.json
+```
+
+L'identità semantica dell'artefatto nell'envelope è:
+
+```json
+"artifact": "learning-source.analysis.ai"
+```
+
+Il riuso di un successo richiede `status == "complete"` e corrispondenza esatta
+di provenienza: tipo sorgente, nome dell'input canonico, SHA-256 e byte count.
+Gli artefatti falliti non sono mai riusabili come successo. Cambiamenti dei
+byte anche a parità di lunghezza invalidano il riuso perché viene controllato
+lo SHA-256.
 
 ### Fase review
 

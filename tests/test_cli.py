@@ -97,6 +97,28 @@ class CliTests(unittest.TestCase):
             reused=False,
             record={},
         )
+
+    def ai_advisory_result(
+        self,
+        workdir: Path,
+        *,
+        status: str = "complete",
+        failure: dict[str, str] | None = None,
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            workdir=workdir,
+            path=workdir / "learning-source.analysis.ai.json",
+            reused=False,
+            envelope={
+                "schema_version": 1,
+                "artifact": "learning-source.analysis.ai",
+                "authority": "ai-advisory",
+                "status": status,
+                "provenance": {},
+                "payload": {} if status == "complete" else None,
+                "failure": failure,
+            },
+        )
     def test_development_version_is_exposed(self) -> None:
         self.assertEqual(__version__, "0.5.0-dev")
 
@@ -421,6 +443,181 @@ class CliTests(unittest.TestCase):
                         force=False,
                         inspect_only=False,
                     )
+
+
+    def test_ai_advisory_youtube_runs_after_prepare(self) -> None:
+        url = "https://www.youtube.com/watch?v=example"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workdir = root / "workspace"
+
+            with (
+                patch(
+                    "gyte_study_tools.cli.inspect_video",
+                    return_value=self.inspection_result(workdir),
+                ),
+                patch(
+                    "gyte_study_tools.cli.prepare_transcript",
+                    return_value=self.preparation_result(workdir),
+                ) as prepare_transcript,
+                patch(
+                    "gyte_study_tools.cli.generate_ai_advisory",
+                    return_value=self.ai_advisory_result(workdir),
+                ) as generate_ai_advisory,
+                patch(
+                    "gyte_study_tools.cli.create_ai_analyzer"
+                ) as create_ai_analyzer,
+            ):
+                result = main(
+                    [
+                        "--json",
+                        "--ai-advisory",
+                        "--work-root",
+                        str(root),
+                        url,
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            prepare_transcript.assert_called_once_with(workdir, force=False)
+            generate_ai_advisory.assert_called_once_with(
+                workdir,
+                "youtube",
+                force=False,
+                analyzer_factory=create_ai_analyzer,
+            )
+
+    def test_ai_advisory_article_runs_after_article_prepare(self) -> None:
+        url = "https://example.test/article"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workdir = root / "workspace"
+
+            with (
+                patch(
+                    "gyte_study_tools.cli.ingest_article",
+                    return_value=self.article_result(workdir),
+                ) as ingest_article,
+                patch(
+                    "gyte_study_tools.cli.generate_ai_advisory",
+                    return_value=self.ai_advisory_result(workdir),
+                ) as generate_ai_advisory,
+                patch(
+                    "gyte_study_tools.cli.create_ai_analyzer"
+                ) as create_ai_analyzer,
+            ):
+                result = main(
+                    [
+                        "--json",
+                        "--ai-advisory",
+                        "--work-root",
+                        str(root),
+                        url,
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            ingest_article.assert_called_once_with(
+                url=url,
+                work_root=root,
+                force=False,
+                inspect_only=False,
+            )
+            generate_ai_advisory.assert_called_once_with(
+                workdir,
+                "article",
+                force=False,
+                analyzer_factory=create_ai_analyzer,
+            )
+
+    def test_expected_ai_failure_does_not_fail_cli_preparation(self) -> None:
+        url = "https://www.youtube.com/watch?v=example"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workdir = root / "workspace"
+            failed = self.ai_advisory_result(
+                workdir,
+                status="failed",
+                failure={
+                    "kind": "unavailable",
+                    "message": "offline",
+                },
+            )
+
+            with (
+                patch(
+                    "gyte_study_tools.cli.inspect_video",
+                    return_value=self.inspection_result(workdir),
+                ),
+                patch(
+                    "gyte_study_tools.cli.prepare_transcript",
+                    return_value=self.preparation_result(workdir),
+                ) as prepare_transcript,
+                patch(
+                    "gyte_study_tools.cli.generate_ai_advisory",
+                    return_value=failed,
+                ),
+                patch("gyte_study_tools.cli.create_ai_analyzer"),
+            ):
+                result = main(
+                    [
+                        "--json",
+                        "--ai-advisory",
+                        "--work-root",
+                        str(root),
+                        url,
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            prepare_transcript.assert_called_once_with(workdir, force=False)
+
+    def test_ai_advisory_force_is_forwarded(self) -> None:
+        url = "https://www.youtube.com/watch?v=example"
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workdir = root / "workspace"
+
+            with (
+                patch(
+                    "gyte_study_tools.cli.inspect_video",
+                    return_value=self.inspection_result(workdir),
+                ),
+                patch(
+                    "gyte_study_tools.cli.prepare_transcript",
+                    return_value=self.preparation_result(workdir),
+                ) as prepare_transcript,
+                patch(
+                    "gyte_study_tools.cli.generate_ai_advisory",
+                    return_value=self.ai_advisory_result(workdir),
+                ) as generate_ai_advisory,
+                patch(
+                    "gyte_study_tools.cli.create_ai_analyzer"
+                ) as create_ai_analyzer,
+            ):
+                result = main(
+                    [
+                        "--json",
+                        "--ai-advisory",
+                        "--force",
+                        "--work-root",
+                        str(root),
+                        url,
+                    ]
+                )
+
+            self.assertEqual(result, 0)
+            prepare_transcript.assert_called_once_with(workdir, force=True)
+            generate_ai_advisory.assert_called_once_with(
+                workdir,
+                "youtube",
+                force=True,
+                analyzer_factory=create_ai_analyzer,
+            )
 
 
 if __name__ == "__main__":

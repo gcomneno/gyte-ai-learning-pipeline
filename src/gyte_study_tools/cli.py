@@ -9,6 +9,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from gyte_study_tools.ai_advisory import (
+    AIAdvisoryError,
+    AIAdvisoryResult,
+    generate_ai_advisory,
+)
 from gyte_study_tools import __version__
 from gyte_study_tools.articles import (
     ArticleError,
@@ -89,6 +94,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Rigenera gli output preparatori.",
+    )
+    parser.add_argument(
+        "--ai-advisory",
+        action="store_true",
+        help="Genera o riusa un advisory AI opzionale dal materiale di analisi preparato.",
     )
     parser.add_argument(
         "--review-from",
@@ -268,6 +278,23 @@ def print_article(result: ArticleResult) -> None:
         print("ESITO: ispezione articolo completata.")
 
 
+def print_ai_advisory(result: AIAdvisoryResult) -> None:
+    envelope = result.envelope
+    print()
+    print("===== ADVISORY AI =====")
+    print(f"Artefatto: {envelope['artifact']}")
+    print(f"Stato:     {envelope['status']}")
+    print(f"File:      {result.path}")
+    print(f"Riusato:   {'sì' if result.reused else 'no'}")
+
+    failure = envelope.get("failure")
+    if isinstance(failure, dict):
+        print(f"Failure:   {failure['kind']}: {failure['message']}")
+        print("ESITO: advisory AI opzionale fallito; preparazione deterministica preservata.")
+    else:
+        print("ESITO: advisory AI completato.")
+
+
 def print_review(result: ReviewResult) -> None:
     print()
     print("===== CHECKPOINT EDITORIALE =====")
@@ -370,6 +397,20 @@ def article_to_dict(result: ArticleResult) -> dict[str, object]:
     }
 
 
+def ai_advisory_to_dict(result: AIAdvisoryResult) -> dict[str, object]:
+    return {
+        "path": str(result.path),
+        "reused": result.reused,
+        "envelope": result.envelope,
+    }
+
+
+def create_ai_analyzer():
+    from gyte_study_tools.ai_composition import create_learning_source_analyzer
+
+    return create_learning_source_analyzer()
+
+
 def review_to_dict(result: ReviewResult) -> dict[str, object]:
     identity = result.checkpoint["source_identity"]
     return {"workdir": str(result.workdir), "checkpoint_path": str(result.checkpoint_path), "checkpoint_sha256": result.checkpoint_sha256, "checkpoint_id": result.checkpoint["checkpoint_id"], "source_type": identity["source_type"], "source_id_kind": identity["source_id_kind"], "source_id": identity["source_id"]}
@@ -400,6 +441,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.check:
         if args.url:
             parser.error("--check non può essere combinato con URL.")
+        if args.ai_advisory:
+            parser.error("--ai-advisory non può essere combinato con --check.")
         return check_environment()
 
     if args.record_kindle_delivery is not None:
@@ -409,6 +452,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.inspect_only or args.force:
             parser.error("--record-kindle-delivery non usa --inspect-only o --force.")
+        if args.ai_advisory:
+            parser.error("--record-kindle-delivery non usa --ai-advisory.")
         if not args.url:
             parser.error("--record-kindle-delivery richiede l'URL della sorgente.")
         try:
@@ -429,15 +474,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--force non è applicabile con --inspect-only.")
 
     if args.inspect_only and args.publish_from:
-        parser.error(
-            "--publish-from non è applicabile con --inspect-only."
-        )
+        parser.error("--publish-from non è applicabile con --inspect-only.")
+
+    if args.inspect_only and args.ai_advisory:
+        parser.error("--ai-advisory richiede prepare completo; non usa --inspect-only.")
 
     if args.review_from is not None:
-        if args.publish_from or args.kindle_email or args.record_kindle_delivery:
+        if (
+            args.publish_from
+            or args.kindle_email
+            or args.record_kindle_delivery
+            or args.ai_advisory
+        ):
             parser.error("--review-from non può essere combinato con publish o delivery.")
         if args.inspect_only or args.force or args.output_dir:
             parser.error("--review-from non usa --inspect-only, --force o --output-dir.")
+
+    if args.ai_advisory and args.publish_from:
+        parser.error("--ai-advisory non può essere combinato con publish o delivery.")
 
     if args.output_dir and not args.publish_from:
         parser.error("--output-dir richiede --publish-from.")
@@ -460,6 +514,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         inspection = None
         preparation = None
         article = None
+        ai_advisory = None
 
         if args.review_from is not None:
             workdir = resolve_workspace(args.url, args.work_root)
@@ -473,10 +528,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif source_type == "youtube":
             inspection = inspect_video(args.url, args.work_root)
             preparation = None if args.inspect_only else prepare_transcript(inspection.workdir, force=args.force)
+            if args.ai_advisory and preparation is not None:
+                ai_advisory = generate_ai_advisory(
+                    preparation.workdir,
+                    source_type,
+                    force=args.force,
+                    analyzer_factory=create_ai_analyzer,
+                )
         else:
             article = ingest_article(url=args.url, work_root=args.work_root, force=args.force, inspect_only=args.inspect_only)
+            if args.ai_advisory and article.analysis_markdown_path is not None:
+                ai_advisory = generate_ai_advisory(
+                    article.workdir,
+                    source_type,
+                    force=args.force,
+                    analyzer_factory=create_ai_analyzer,
+                )
 
     except (
+        AIAdvisoryError,
         SourceDetectionError,
         InspectionError,
         PreparationError,
@@ -505,6 +575,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if article is not None:
             output["article"] = article_to_dict(article)
 
+        if ai_advisory is not None:
+            output["ai_advisory"] = ai_advisory_to_dict(ai_advisory)
+
         if publication is not None:
             output["publication"] = publication_to_dict(publication)
 
@@ -523,6 +596,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if article is not None:
             print_article(article)
+
+        if ai_advisory is not None:
+            print_ai_advisory(ai_advisory)
 
         if publication is not None:
             print_publication(publication)
