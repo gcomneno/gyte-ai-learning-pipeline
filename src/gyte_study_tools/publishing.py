@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from gyte_study_tools.inspection import atomic_write_text, load_state
+from gyte_study_tools.review import ReviewError, validate_review_checkpoint
 
 
 DEFAULT_AUTHOR = "Giancarlo e ChatGPT"
@@ -25,6 +26,7 @@ BACKTICK = chr(96)
 MARKDOWN_FENCE = BACKTICK * 3
 MANIFEST_SCHEMA_VERSION = 2
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+CHECKPOINT_ID_PATTERN = re.compile(r"review-[0-9a-f]{64}")
 PREPARED_ANALYSIS_NAMES = (
     "transcript.analysis.md",
     "article.analysis.md",
@@ -728,6 +730,21 @@ def validate_manifest_backups(manifest: dict[str, Any], manifest_dir: Path) -> N
         confined_relative_path(manifest_dir, backup, "backups backup")
 
 
+def validate_manifest_review_checkpoint(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise PublicationError("review_checkpoint non è un oggetto valido.")
+    if value.get("relationship") != "required-prior-explicit-operation":
+        raise PublicationError("review_checkpoint.relationship non valido.")
+    if (
+        not isinstance(value.get("checkpoint_id"), str)
+        or CHECKPOINT_ID_PATTERN.fullmatch(value["checkpoint_id"]) is None
+    ):
+        raise PublicationError("review_checkpoint.checkpoint_id non valido.")
+    require_sha256(value.get("checkpoint_sha256"), "review_checkpoint.checkpoint_sha256")
+    if not isinstance(value.get("created_at"), str) or not value["created_at"].strip():
+        raise PublicationError("review_checkpoint.created_at non valido.")
+
+
 def validate_manifest_v2_structure(
     manifest_path: Path,
     *,
@@ -764,6 +781,9 @@ def validate_manifest_v2_structure(
         full_validation=full_validation,
     )
     validate_manifest_backups(manifest, manifest_dir)
+    review_checkpoint = manifest.get("review_checkpoint")
+    if review_checkpoint is not None:
+        validate_manifest_review_checkpoint(review_checkpoint)
     return manifest
 
 
@@ -996,6 +1016,17 @@ def publish_lesson(
         raise PublicationError("La lezione sorgente Markdown è vuota.")
 
     heading = extract_heading(markdown)
+    try:
+        validated_review_checkpoint = validate_review_checkpoint(
+            workdir,
+            source_path,
+            source_bytes=source_bytes,
+            h1=heading,
+        )
+    except ReviewError as error:
+        raise PublicationError(str(error)) from error
+
+    review_checkpoint = validated_review_checkpoint.checkpoint
     title = normalize_publication_title(heading)
     stem = filename_stem(title)
 
@@ -1077,6 +1108,12 @@ def publish_lesson(
         "title": title,
         "author": author,
         "source_context": build_source_context(workdir, state),
+        "review_checkpoint": {
+            "relationship": "required-prior-explicit-operation",
+            "checkpoint_id": review_checkpoint["checkpoint_id"],
+            "checkpoint_sha256": validated_review_checkpoint.checkpoint_sha256,
+            "created_at": review_checkpoint["created_at"],
+        },
         "reviewed_source": {
             "role": "reviewed-source-snapshot",
             "sha256": source_sha256,

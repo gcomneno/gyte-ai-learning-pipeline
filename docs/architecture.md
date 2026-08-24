@@ -24,7 +24,8 @@ Orchestrates the study and editorial workflow:
 - normalization;
 - validation;
 - analysis-package creation;
-- publication of the reviewed source lesson;
+- explicit reviewed-source checkpoint;
+- publication of the checkpointed reviewed source lesson;
 - Markdown → PDF conversion;
 - Markdown → EPUB conversion;
 - output validation.
@@ -61,23 +62,33 @@ The path can be overridden through `--work-root` or
    - word-count verification;
    - generate `transcript.analysis.md`.
 
-4. `compose`
+4. `review`
+   - local downstream operation for an existing private workspace;
+   - validates the reviewed Markdown source lesson;
+   - requires exactly one H1 and completed preparation;
+   - writes `reviewed-source-checkpoint.json` schema v1;
+   - records `stages.review` as restart/control state.
+
+5. `compose`
    - assisted version: waits for the reviewed source lesson;
    - future full version: uses a configurable LLM provider.
 
-5. `publish`
+6. `publish`
+   - local downstream operation for an existing private workspace;
+   - requires a current valid explicit review checkpoint;
+   - validates the checkpoint before publication output mutation;
    - single Markdown source;
    - independent PDF and EPUB generation;
    - coherent metadata;
    - backups of previous outputs.
 
-6. `validate`
+7. `validate`
    - EPUB ZIP integrity;
    - mimetype verification;
    - recoverable-text check;
    - final summary.
 
-7. `delivery`
+8. `delivery`
    - local **prepare** transition only after `publish` is complete and the
      manifest is valid;
    - verify EPUB hash and size, then create an independent atomic copy in
@@ -140,11 +151,60 @@ The `prepare` stage:
 - adopts complete existing outputs without rewriting them;
 - records the `transcribe` and `prepare` stages in the state file.
 
+### Review stage
+
+The `review` stage is the explicit evidence-to-reviewed-source authority
+checkpoint. The authority ladder is intentionally non-collapsing:
+
+```text
+source evidence
+!= normalized evidence
+!= prepared analysis
+!= editorial candidate
+!= reviewed source
+!= published derivative
+```
+
+`--review-from LESSON SOURCE_URL` resolves an existing private workspace
+locally from `SOURCE_URL`. It does not reacquire the source, rerun inspect,
+rerun prepare, re-ingest an article, publish, run AI, or mutate evidence and
+preparation artifacts. It requires `prepare` complete, validates the reviewed
+Markdown including exactly one H1, writes `reviewed-source-checkpoint.json`
+schema v1, and records `stages.review` in `pipeline-state.json`.
+
+`reviewed-source-checkpoint.json` is private authoritative review evidence. It
+binds exact reviewed-source bytes, the observed source identity, and exact bytes
+of the required evidence/preparation artifacts. For video those artifacts are
+`metadata.json`, `source-url.txt`, `transcript.raw.txt`,
+`transcript.normalized.txt`, `transcript.analysis.txt` and
+`transcript.analysis.md`. For articles they are `metadata.json`,
+`source-url.txt`, `article.raw.html`, `article.extracted.md` and
+`article.analysis.md`.
+
+`stages.review` is restartability and control metadata: a pointer/hash summary
+of the checkpoint, not editorial authority itself. Checkpoint replacement and
+state update are fail-safe; a failed state update must not leave state silently
+pointing at a different checkpoint.
+
+The checkpoint proves only that an explicit checkpoint operation occurred, the
+exact reviewed-source bytes, the source identity observed for that checkpoint,
+and the exact bytes of the required evidence/preparation artifacts. It does not
+prove human comprehension, factual correctness, source truth, fact-check
+completion, AI approval, lesson quality, or causal derivation/editorial lineage
+from prepared analysis.
+
+Changing the reviewed lesson, source identity, metadata, source URL, raw or
+normalized evidence, or prepared analysis makes the checkpoint stale for
+publication. Re-running `--review-from` explicitly restores publication
+eligibility only if the new current material is acceptable.
+
 ### Publish stage
 
 The `publish` stage:
 
-- accepts a reviewed Markdown source lesson;
+- accepts a reviewed Markdown source lesson from an existing local workspace;
+- does not reacquire the source, rerun inspect, rerun prepare or re-ingest an article;
+- requires a current valid explicit review checkpoint before output mutation;
 - derives the title from the H1;
 - preserves the H1 title without adding labels;
 - renders semantic HTML without external Python dependencies;
@@ -159,7 +219,7 @@ An explicit `--output-dir` may place publication outputs outside the workspace.
 That directory is publication authority only because `publish_lesson` records
 the concrete manifest and EPUB paths in pipeline state.
 
-Publication manifest v2 records byte-level provenance and integrity only:
+Publication manifest v2 records byte-level publication provenance and observed source/preparation context only:
 
 - `reviewed_source.sha256` is the exact byte hash of the Markdown source read
   by `publish_lesson`;
@@ -172,12 +232,17 @@ Publication manifest v2 records byte-level provenance and integrity only:
 - `source_context.prepared_artifacts[]` records only prepared-analysis
   artifacts observed at publication time and their exact byte hashes.
 
-These hashes prove byte identity only. They do not prove correctness, source
-truth, comprehension, human review, fact-checking or that the reviewed lesson
-was derived from prepared analysis. Metadata and prepared analysis are observed
-context, not editorial lineage. The full editorial relationship remains
-deferred to the explicit review checkpoint work tracked separately as issue
-#18.
+Issue #17 established byte-level publication provenance and observed
+source/preparation context. It did not prove editorial lineage. Issue #18 adds
+the explicit review checkpoint that publication must validate before mutating
+outputs.
+
+Publication manifest schema remains v2. Newly published manifests may contain
+`review_checkpoint` with `relationship`, `checkpoint_id`,
+`checkpoint_sha256` and `created_at`. The SHA is the exact checkpoint identity
+validated before publication work. Valid schema-v2 manifests without
+`review_checkpoint` remain valid legacy publication evidence for Kindle
+delivery.
 
 ### Delivery stage
 
@@ -198,11 +263,13 @@ metadata and records that receipt atomically. The repository contains no OAuth,
 SMTP, token or Gmail configuration.
 
 Delivery accepts only a completed publication whose manifest is validated as
-schema v2. The manifest EPUB path must agree with publish state, remain
-relative inside the publication directory, identify a non-empty regular EPUB,
-have valid EPUB structure and match the recorded SHA-256. Delivery does not
-walk metadata, transcript, prepared-analysis or arbitrary manifest-mentioned
-paths.
+schema v2, including both valid legacy manifests without `review_checkpoint`
+and newer manifests with `review_checkpoint`. The manifest EPUB path must agree
+with publish state, remain relative inside the publication directory, identify
+a non-empty regular EPUB, have valid EPUB structure and match the recorded
+SHA-256. Delivery does not reopen `reviewed-source-checkpoint.json`, walk
+metadata, transcript, prepared-analysis or arbitrary manifest-mentioned paths,
+or gain authority over private evidence/preparation artifacts.
 
 When publication used an external `--output-dir`, delivery may prepare the
 Kindle handoff from that state-recorded publication directory. The manifest's

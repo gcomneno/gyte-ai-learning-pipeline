@@ -24,6 +24,7 @@ YouTube
   → reflow
   → analysis transcript
   → reviewed source lesson
+  → explicit review checkpoint
   → PDF and EPUB
   → validation
   → local Kindle request
@@ -36,12 +37,16 @@ The assisted pipeline is available for:
 1. inspecting YouTube videos;
 2. acquiring and normalizing transcripts;
 3. preparing analysis material;
-4. publishing the validated source lesson as Markdown, HTML, PDF and EPUB;
-5. resumable preparation of Kindle delivery;
-6. article ingestion.
+4. recording an explicit review checkpoint for an existing private workspace;
+5. publishing the checkpointed source lesson as Markdown, HTML, PDF and EPUB;
+6. resumable preparation of Kindle delivery;
+7. article ingestion.
 
-Review and drafting of the source lesson remain a controlled editorial step.
-The Whisper audio fallback is not implemented yet.
+Drafting of the source lesson remains a controlled editorial step. The review
+checkpoint records explicit local acceptance of exact bytes, but it does not
+prove human comprehension, factual correctness, source truth, fact-check
+completion, AI approval or lesson quality. The Whisper audio fallback is not
+implemented yet.
 
 ## Responsibilities
 
@@ -160,7 +165,13 @@ gyte-lesson-kindle --force URL_YOUTUBE
 
 The Whisper audio fallback is not implemented yet.
 
-## Third available stage: publish
+## Third available stage: review
+
+Normal URL-only invocation is acquisition and preparation: it resolves or
+creates the private workspace, inspects the source when needed, and prepares
+video or article analysis material. Downstream review and publication are local
+operations against an existing private workspace resolved from the same source
+URL; they do not reacquire the source or rerun preparation.
 
 After editorial review, `lesson.md` is the stable source lesson: a
 self-contained editorial handoff intended for TritaLeLe. GYTE AI Learning Pipeline does
@@ -177,23 +188,82 @@ The source lesson must satisfy this minimum editorial contract:
 - limitations or unsupported claims;
 - review or reflection questions.
 
-`transcript.analysis.md` remains assisted material for editorial review; the
-source lesson is drafted and checked by the editor, without automatic
-generation. It can then be published with:
+`transcript.analysis.md` and `article.analysis.md` remain assisted material for
+editorial review; the source lesson is drafted and checked by the editor,
+without automatic generation. Record the explicit checkpoint with:
 
 ```bash
 gyte-lesson-kindle \
-  --publish-from "/percorso/lesson.md" \
+  --review-from "/path/to/lesson.md" \
   "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-Publishing generates from the same semantic source:
+`--review-from` resolves an existing private workspace locally, requires
+`prepare` to be complete, validates the reviewed Markdown including exactly one
+H1, writes `reviewed-source-checkpoint.json`, and records `stages.review` in
+`pipeline-state.json`. It does not reacquire the source, rerun inspect, rerun
+prepare, re-ingest an article, run AI, publish, or mutate evidence and
+preparation artifacts.
+
+The checkpoint binds exact reviewed-source bytes, source identity and the
+required evidence/preparation artifact bytes: for video, `metadata.json`,
+`source-url.txt`, `transcript.raw.txt`, `transcript.normalized.txt`,
+`transcript.analysis.txt` and `transcript.analysis.md`; for articles,
+`metadata.json`, `source-url.txt`, `article.raw.html`,
+`article.extracted.md` and `article.analysis.md`.
+
+The authority ladder remains explicit:
+
+```text
+source evidence
+!= normalized evidence
+!= prepared analysis
+!= editorial candidate
+!= reviewed source
+!= published derivative
+```
+
+Prepared or generated material never becomes publication authority implicitly.
+The checkpoint proves only that an explicit checkpoint operation occurred over
+exact reviewed-source and evidence/preparation bytes. It does not prove causal
+editorial lineage from prepared analysis. If the reviewed lesson, source
+identity, metadata, source URL, raw or normalized evidence, or prepared
+analysis changes after review, publication eligibility becomes stale; rerun
+`--review-from` explicitly when the new current material is acceptable.
+
+## Fourth available stage: publish
+
+`--publish-from` is also a downstream local operation against an existing
+workspace. It does not reacquire the source, rerun inspect, rerun prepare, or
+re-ingest an article. Publish with:
+
+```bash
+gyte-lesson-kindle \
+  --publish-from "/path/to/lesson.md" \
+  "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+Publishing requires a current valid explicit review checkpoint and validates
+it before publication output mutation. It fails closed if the lesson, source
+identity or required evidence/preparation artifact bytes changed after review.
+It generates from the same semantic source:
 
 - published Markdown;
 - HTML;
 - PDF;
 - EPUB;
 - `publication-manifest.json` with SHA-256 hashes.
+
+Publication manifest schema remains v2. Newly published manifests may include
+`review_checkpoint` with `relationship`, `checkpoint_id`,
+`checkpoint_sha256` and `created_at`; the SHA is the exact checkpoint identity
+validated before publication work. Already-produced valid v2 manifests without
+`review_checkpoint` remain valid for Kindle delivery. An old private workspace
+without an explicit checkpoint must run `--review-from` once before its next
+publication, but that does not invalidate an already-produced valid
+manifest-v2 publication for delivery. Delivery accepts both valid v2 forms and
+does not reopen `reviewed-source-checkpoint.json` or gain authority over
+private transcript, evidence or preparation artifacts.
 
 By default, outputs are saved in:
 
@@ -269,6 +339,7 @@ YouTube URL
   → transcript
   → prepare
   → editorial review
+  → review checkpoint
   → publish
   → validated PDF + EPUB
 ```

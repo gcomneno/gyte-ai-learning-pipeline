@@ -40,6 +40,11 @@ from gyte_study_tools.publishing import (
     PublicationResult,
     publish_lesson,
 )
+from gyte_study_tools.review import (
+    ReviewError,
+    ReviewResult,
+    review_lesson,
+)
 from gyte_study_tools.sources import (
     SourceDetectionError,
     detect_source_type,
@@ -86,9 +91,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Rigenera gli output preparatori.",
     )
     parser.add_argument(
+        "--review-from",
+        type=Path,
+        help="Registra il checkpoint editoriale esplicito per una lezione sorgente Markdown revisionata.",
+    )
+    parser.add_argument(
         "--publish-from",
         type=Path,
-        help="Pubblica una lezione sorgente Markdown revisionata.",
+        help="Pubblica una lezione sorgente Markdown revisionata già passata da --review-from.",
     )
     parser.add_argument(
         "--kindle-email",
@@ -258,6 +268,17 @@ def print_article(result: ArticleResult) -> None:
         print("ESITO: ispezione articolo completata.")
 
 
+def print_review(result: ReviewResult) -> None:
+    print()
+    print("===== CHECKPOINT EDITORIALE =====")
+    print(f"Checkpoint: {result.checkpoint_path}")
+    print(f"SHA-256:    {result.checkpoint_sha256}")
+    print(f"Sorgente:   {result.checkpoint['source_identity']['source_type']}")
+    print(f"ID:         {result.checkpoint['source_identity']['source_id']}")
+    print()
+    print("ESITO: fase review completata; nessuna pubblicazione eseguita.")
+
+
 def print_publication(result: PublicationResult) -> None:
     print()
     print("===== PUBBLICAZIONE LEZIONE SORGENTE =====")
@@ -349,6 +370,11 @@ def article_to_dict(result: ArticleResult) -> dict[str, object]:
     }
 
 
+def review_to_dict(result: ReviewResult) -> dict[str, object]:
+    identity = result.checkpoint["source_identity"]
+    return {"workdir": str(result.workdir), "checkpoint_path": str(result.checkpoint_path), "checkpoint_sha256": result.checkpoint_sha256, "checkpoint_id": result.checkpoint["checkpoint_id"], "source_type": identity["source_type"], "source_id_kind": identity["source_id_kind"], "source_id": identity["source_id"]}
+
+
 def publication_to_dict(result: PublicationResult) -> dict[str, object]:
     return {
         "title": result.title,
@@ -377,7 +403,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return check_environment()
 
     if args.record_kindle_delivery is not None:
-        if args.publish_from or args.kindle_email or args.output_dir:
+        if args.publish_from or args.review_from or args.kindle_email or args.output_dir:
             parser.error(
                 "--record-kindle-delivery non può essere combinato con opzioni publish o delivery."
             )
@@ -407,11 +433,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             "--publish-from non è applicabile con --inspect-only."
         )
 
+    if args.review_from is not None:
+        if args.publish_from or args.kindle_email or args.record_kindle_delivery:
+            parser.error("--review-from non può essere combinato con publish o delivery.")
+        if args.inspect_only or args.force or args.output_dir:
+            parser.error("--review-from non usa --inspect-only, --force o --output-dir.")
+
     if args.output_dir and not args.publish_from:
         parser.error("--output-dir richiede --publish-from.")
 
     if args.kindle_email and not args.publish_from:
         parser.error("--kindle-email richiede --publish-from.")
+
+    if args.review_from is not None and not args.url:
+        parser.error("--review-from richiede l'URL della sorgente.")
 
     if not args.url:
         parser.print_help()
@@ -419,44 +454,27 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         source_type = detect_source_type(args.url)
+        review: ReviewResult | None = None
         publication: PublicationResult | None = None
         delivery: DeliveryResult | None = None
+        inspection = None
+        preparation = None
+        article = None
 
-        if source_type == "youtube":
-            inspection = inspect_video(args.url, args.work_root)
-            preparation = (
-                None
-                if args.inspect_only
-                else prepare_transcript(
-                    inspection.workdir,
-                    force=args.force,
-                )
-            )
-            article = None
-            workdir = inspection.workdir
-        else:
-            article = ingest_article(
-                url=args.url,
-                work_root=args.work_root,
-                force=args.force,
-                inspect_only=args.inspect_only,
-            )
-            inspection = None
-            preparation = None
-            workdir = article.workdir
-
-        if args.publish_from is not None:
-            publication = publish_lesson(
-                workdir=workdir,
-                source_path=args.publish_from,
-                author=args.author,
-                output_dir=args.output_dir,
-            )
+        if args.review_from is not None:
+            workdir = resolve_workspace(args.url, args.work_root)
+            review = review_lesson(workdir, args.review_from)
+            source_type = review.checkpoint["source_identity"]["source_type"]
+        elif args.publish_from is not None:
+            workdir = resolve_workspace(args.url, args.work_root)
+            publication = publish_lesson(workdir=workdir, source_path=args.publish_from, author=args.author, output_dir=args.output_dir)
             if args.kindle_email:
-                delivery = prepare_kindle_delivery(
-                    workdir,
-                    args.kindle_email,
-                )
+                delivery = prepare_kindle_delivery(workdir, args.kindle_email)
+        elif source_type == "youtube":
+            inspection = inspect_video(args.url, args.work_root)
+            preparation = None if args.inspect_only else prepare_transcript(inspection.workdir, force=args.force)
+        else:
+            article = ingest_article(url=args.url, work_root=args.work_root, force=args.force, inspect_only=args.inspect_only)
 
     except (
         SourceDetectionError,
@@ -464,6 +482,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         PreparationError,
         ArticleError,
         PublicationError,
+        ReviewError,
         DeliveryError,
         OSError,
     ) as error:
@@ -477,6 +496,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if inspection is not None:
             output["inspection"] = inspection_to_dict(inspection)
+        if review is not None:
+            output["review"] = review_to_dict(review)
 
         if preparation is not None:
             output["preparation"] = preparation_to_dict(preparation)
@@ -494,6 +515,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         if inspection is not None:
             print_inspection(inspection)
+        if review is not None:
+            print_review(review)
 
         if preparation is not None:
             print_preparation(preparation)

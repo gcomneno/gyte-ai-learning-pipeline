@@ -24,7 +24,8 @@ Orchestra il workflow didattico ed editoriale:
 - normalizzazione;
 - validazione;
 - creazione del pacchetto di analisi;
-- pubblicazione della lezione sorgente revisionata;
+- checkpoint esplicito della sorgente revisionata;
+- pubblicazione della lezione sorgente revisionata con checkpoint;
 - conversione Markdown → PDF;
 - conversione Markdown → EPUB;
 - validazione degli output.
@@ -61,23 +62,33 @@ Il percorso può essere sostituito tramite `--work-root` o
    - controllo del conteggio delle parole;
    - generazione di `transcript.analysis.md`.
 
-4. `compose`
+4. `review`
+   - operazione downstream locale per un workspace privato esistente;
+   - valida la lezione sorgente revisionata in Markdown;
+   - richiede esattamente un H1 e preparazione completa;
+   - scrive `reviewed-source-checkpoint.json` schema v1;
+   - registra `stages.review` come stato di restart/controllo.
+
+5. `compose`
    - versione assistita: attende la lezione sorgente revisionata;
    - versione completa futura: usa un provider LLM configurabile.
 
-5. `publish`
+6. `publish`
+   - operazione downstream locale per un workspace privato esistente;
+   - richiede un checkpoint di review esplicito corrente e valido;
+   - valida il checkpoint prima di mutare gli output di pubblicazione;
    - sorgente unica Markdown;
    - generazione indipendente di PDF ed EPUB;
    - metadati coerenti;
    - backup degli output precedenti.
 
-6. `validate`
+7. `validate`
    - integrità ZIP dell'EPUB;
    - verifica del mimetype;
    - controllo del testo recuperabile;
    - riepilogo finale.
 
-7. `delivery`
+8. `delivery`
    - transizione locale **prepare** solo dopo `publish` completo e manifest
      valido;
    - verifica di hash e dimensione EPUB, quindi copia indipendente atomica in
@@ -140,11 +151,61 @@ La fase `prepare`:
 - adotta senza riscriverli output completi già esistenti;
 - registra le fasi `transcribe` e `prepare` nel file di stato.
 
+### Fase review
+
+La fase `review` è il checkpoint esplicito di autorità tra evidenza e sorgente
+revisionata. La scala di autorità non deve collassare:
+
+```text
+evidenza sorgente
+!= evidenza normalizzata
+!= analisi preparata
+!= candidato editoriale
+!= sorgente revisionata
+!= derivato pubblicato
+```
+
+`--review-from LEZIONE SOURCE_URL` risolve localmente da `SOURCE_URL` un
+workspace privato esistente. Non riacquisisce la fonte, non riesegue inspect,
+non riesegue prepare, non reingerisce un articolo, non pubblica, non esegue AI
+e non muta artefatti di evidenza o preparazione. Richiede `prepare` completo,
+valida il Markdown revisionato incluso esattamente un H1, scrive
+`reviewed-source-checkpoint.json` schema v1 e registra `stages.review` in
+`pipeline-state.json`.
+
+`reviewed-source-checkpoint.json` è evidenza privata autorevole della review.
+Vincola i byte esatti della sorgente revisionata, l'identità sorgente osservata
+e i byte esatti degli artefatti di evidenza/preparazione richiesti. Per i video
+sono `metadata.json`, `source-url.txt`, `transcript.raw.txt`,
+`transcript.normalized.txt`, `transcript.analysis.txt` e
+`transcript.analysis.md`. Per gli articoli sono `metadata.json`,
+`source-url.txt`, `article.raw.html`, `article.extracted.md` e
+`article.analysis.md`.
+
+`stages.review` è metadato di restart e controllo: un puntatore/riassunto hash
+del checkpoint, non autorità editoriale in sé. Sostituzione del checkpoint e
+aggiornamento dello stato sono fail-safe; un aggiornamento stato fallito non
+deve lasciare lo stato puntato silenziosamente a un checkpoint diverso.
+
+Il checkpoint prova solo che è avvenuta un'operazione esplicita di checkpoint,
+i byte esatti della sorgente revisionata, l'identità sorgente osservata per
+quel checkpoint e i byte esatti degli artefatti di evidenza/preparazione
+richiesti. Non prova comprensione umana, correttezza fattuale, verità della
+fonte, completamento del fact-checking, approvazione AI, qualità della lezione
+o derivazione causale/lineage editoriale dall'analisi preparata.
+
+Modificare lezione revisionata, identità sorgente, metadati, URL sorgente,
+evidenza raw o normalizzata, oppure analisi preparata rende il checkpoint stale
+per la pubblicazione. Rieseguire `--review-from` ripristina esplicitamente
+l'idoneità alla pubblicazione solo se il nuovo materiale corrente è accettabile.
+
 ### Fase publish
 
 La fase `publish`:
 
-- accetta una lezione sorgente revisionata in Markdown;
+- accetta una lezione sorgente revisionata in Markdown da un workspace locale esistente;
+- non riacquisisce la fonte, non riesegue inspect, non riesegue prepare e non reingerisce un articolo;
+- richiede un checkpoint di review esplicito corrente e valido prima di mutare output;
 - ricava il titolo dall'H1;
 - conserva il titolo H1 senza aggiungere etichette;
 - renderizza HTML semantico senza dipendenze Python esterne;
@@ -160,8 +221,8 @@ workspace. Quella directory ha autorità di pubblicazione solo perché
 `publish_lesson` registra nello stato pipeline i percorsi concreti del manifest
 e dell'EPUB.
 
-Il manifest di pubblicazione v2 registra solo provenienza e integrità a
-livello di byte:
+Il manifest di pubblicazione v2 registra solo provenienza di pubblicazione a
+livello di byte e contesto sorgente/preparazione osservato:
 
 - `reviewed_source.sha256` è l'hash dei byte esatti della sorgente Markdown
   letta da `publish_lesson`;
@@ -175,12 +236,17 @@ livello di byte:
 - `source_context.prepared_artifacts[]` registra solo artefatti di analisi
   preparata osservati al momento della pubblicazione e i loro hash esatti.
 
-Questi hash provano solo identità di byte. Non provano correttezza, verità
-della fonte, comprensione, revisione umana, fact-checking o che la lezione
-revisionata derivi dall'analisi preparata. Metadati e analisi preparata sono
-contesto osservato, non lineage editoriale. La relazione editoriale completa
-resta rimandata al lavoro sul checkpoint di review esplicito tracciato
-separatamente come issue #18.
+La issue #17 ha stabilito provenienza di pubblicazione a livello di byte e
+contesto sorgente/preparazione osservato. Non ha provato lineage editoriale. La
+issue #18 aggiunge il checkpoint di review esplicito che la pubblicazione deve
+validare prima di mutare output.
+
+Lo schema del manifest di pubblicazione resta v2. I nuovi manifest possono
+contenere `review_checkpoint` con `relationship`, `checkpoint_id`,
+`checkpoint_sha256` e `created_at`. Lo SHA è l'identità esatta del checkpoint
+validata prima del lavoro di pubblicazione. Manifest schema-v2 validi senza
+`review_checkpoint` restano evidenza di pubblicazione legacy valida per la
+consegna Kindle.
 
 ### Fase delivery
 
@@ -199,11 +265,14 @@ locali e registra tale ricevuta in modo atomico. Non esistono OAuth, SMTP,
 token o configurazioni Gmail nel repository.
 
 Delivery accetta solo una pubblicazione completa il cui manifest sia validato
-come schema v2. Il percorso EPUB del manifest deve concordare con lo stato
-publish, restare relativo dentro la directory di pubblicazione, identificare
-un EPUB regolare non vuoto, avere struttura EPUB valida e corrispondere allo
-SHA-256 registrato. Delivery non attraversa metadati, transcript, analisi
-preparata o percorsi arbitrari menzionati dal manifest.
+come schema v2, includendo sia manifest legacy validi senza `review_checkpoint`
+sia manifest nuovi con `review_checkpoint`. Il percorso EPUB del manifest deve
+concordare con lo stato publish, restare relativo dentro la directory di
+pubblicazione, identificare un EPUB regolare non vuoto, avere struttura EPUB
+valida e corrispondere allo SHA-256 registrato. Delivery non riapre
+`reviewed-source-checkpoint.json`, non attraversa metadati, transcript, analisi
+preparata o percorsi arbitrari menzionati dal manifest, e non acquisisce
+autorità su artefatti privati di evidenza/preparazione.
 
 Quando la pubblicazione ha usato un `--output-dir` esterno, delivery può
 preparare l'handoff Kindle da quella directory di pubblicazione registrata

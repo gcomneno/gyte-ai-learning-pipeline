@@ -24,6 +24,7 @@ YouTube
   → reflow
   → transcript di analisi
   → lezione sorgente revisionata
+  → checkpoint di review esplicito
   → PDF ed EPUB
   → validazione
   → richiesta Kindle locale
@@ -36,12 +37,16 @@ La pipeline assistita è disponibile per:
 1. ispezione di video YouTube;
 2. acquisizione e normalizzazione dei transcript;
 3. preparazione del materiale di analisi;
-4. pubblicazione della lezione sorgente validata in Markdown, HTML, PDF ed EPUB;
-5. preparazione riavviabile della consegna Kindle;
-6. ingestione di articoli.
+4. registrazione di un checkpoint di review esplicito per un workspace privato esistente;
+5. pubblicazione della lezione sorgente con checkpoint in Markdown, HTML, PDF ed EPUB;
+6. preparazione riavviabile della consegna Kindle;
+7. ingestione di articoli.
 
-La revisione e la redazione della lezione sorgente restano un passaggio
-editoriale controllato. Il fallback audio con Whisper non è ancora implementato.
+La redazione della lezione sorgente resta un passaggio editoriale controllato.
+Il checkpoint di review registra l'accettazione locale esplicita di byte esatti,
+ma non prova comprensione umana, correttezza fattuale, verità della fonte,
+completamento del fact-checking, approvazione AI o qualità della lezione. Il
+fallback audio con Whisper non è ancora implementato.
 
 ## Responsabilità
 
@@ -161,7 +166,13 @@ gyte-lesson-kindle --force URL_YOUTUBE
 
 Il fallback audio con Whisper non è ancora implementato.
 
-## Terza fase disponibile: publish
+## Terza fase disponibile: review
+
+L'invocazione normale con il solo URL è acquisizione e preparazione: risolve o
+crea il workspace privato, ispeziona la fonte quando necessario e prepara il
+materiale di analisi video o articolo. Review e pubblicazione downstream sono
+operazioni locali su un workspace privato esistente risolto dallo stesso URL
+sorgente; non riacquisiscono la fonte e non rieseguono la preparazione.
 
 Dopo la revisione editoriale, `lesson.md` è la lezione sorgente stabile: un
 handoff editoriale autosufficiente destinato a TritaLeLe. GYTE AI Learning Pipeline non
@@ -178,9 +189,55 @@ La lezione sorgente deve rispettare questo contratto editoriale minimo:
 - limiti o affermazioni non supportate;
 - domande di revisione o riflessione.
 
-`transcript.analysis.md` resta il materiale assistito per la revisione; la
-lezione sorgente viene redatta e controllata dall'editor, senza generazione
-automatica. Può quindi essere pubblicata con:
+`transcript.analysis.md` e `article.analysis.md` restano materiali assistiti
+per la revisione; la lezione sorgente viene redatta e controllata dall'editor,
+senza generazione automatica. Registra il checkpoint esplicito con:
+
+```bash
+gyte-lesson-kindle \
+  --review-from "/percorso/lesson.md" \
+  "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+`--review-from` risolve localmente un workspace privato esistente, richiede
+`prepare` completo, valida il Markdown revisionato incluso esattamente un H1,
+scrive `reviewed-source-checkpoint.json` e registra `stages.review` in
+`pipeline-state.json`. Non riacquisisce la fonte, non riesegue inspect, non
+riesegue prepare, non reingerisce un articolo, non esegue AI, non pubblica e
+non muta artefatti di evidenza o preparazione.
+
+Il checkpoint vincola i byte esatti della sorgente revisionata, l'identità
+sorgente e i byte degli artefatti di evidenza/preparazione richiesti: per i
+video, `metadata.json`, `source-url.txt`, `transcript.raw.txt`,
+`transcript.normalized.txt`, `transcript.analysis.txt` e
+`transcript.analysis.md`; per gli articoli, `metadata.json`, `source-url.txt`,
+`article.raw.html`, `article.extracted.md` e `article.analysis.md`.
+
+La scala di autorità resta esplicita:
+
+```text
+evidenza sorgente
+!= evidenza normalizzata
+!= analisi preparata
+!= candidato editoriale
+!= sorgente revisionata
+!= derivato pubblicato
+```
+
+Materiale preparato o generato non diventa mai implicitamente autorità di
+pubblicazione. Il checkpoint prova solo che un'operazione di checkpoint
+esplicita è avvenuta su byte esatti della sorgente revisionata e degli
+artefatti di evidenza/preparazione. Non prova lineage editoriale causale
+dall'analisi preparata. Se dopo la review cambiano lezione revisionata,
+identità sorgente, metadati, URL sorgente, evidenza raw o normalizzata, oppure
+analisi preparata, l'idoneità alla pubblicazione diventa stale; rieseguire
+`--review-from` esplicitamente quando il nuovo materiale corrente è accettabile.
+
+## Quarta fase disponibile: publish
+
+Anche `--publish-from` è un'operazione downstream locale su un workspace
+esistente. Non riacquisisce la fonte, non riesegue inspect, non riesegue
+prepare e non reingerisce un articolo. Pubblica con:
 
 ```bash
 gyte-lesson-kindle \
@@ -188,13 +245,27 @@ gyte-lesson-kindle \
   "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-La pubblicazione genera, dalla stessa sorgente semantica:
+La pubblicazione richiede un checkpoint di review esplicito corrente e valido e
+lo valida prima di mutare gli output di pubblicazione. Fallisce se la lezione,
+l'identità sorgente o gli artefatti di evidenza/preparazione richiesti sono
+cambiati dopo la review. Genera, dalla stessa sorgente semantica:
 
 - Markdown pubblicato;
 - HTML;
 - PDF;
 - EPUB;
 - `publication-manifest.json` con hash SHA-256.
+
+Lo schema del manifest di pubblicazione resta v2. I nuovi manifest possono
+includere `review_checkpoint` con `relationship`, `checkpoint_id`,
+`checkpoint_sha256` e `created_at`; lo SHA è l'identità esatta del checkpoint
+validata prima del lavoro di pubblicazione. Manifest v2 validi già prodotti
+senza `review_checkpoint` restano validi per la consegna Kindle. Un vecchio
+workspace privato senza checkpoint esplicito deve eseguire `--review-from` una
+volta prima della successiva pubblicazione, ma questo non invalida una
+pubblicazione manifest-v2 valida già prodotta per la consegna. Delivery accetta
+entrambe le forme v2 valide e non riapre `reviewed-source-checkpoint.json` né
+acquisisce autorità su transcript privati, evidenza o artefatti di preparazione.
 
 Gli output vengono salvati per impostazione predefinita in:
 
@@ -269,6 +340,7 @@ URL YouTube
   → transcript
   → prepare
   → revisione editoriale
+  → checkpoint di review
   → publish
   → PDF + EPUB validati
 ```
