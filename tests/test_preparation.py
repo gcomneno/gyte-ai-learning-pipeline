@@ -26,6 +26,7 @@ from gyte_study_tools.preparation import (  # noqa: E402
     prepare_transcript,
     run_gyte_transcript,
 )
+from gyte_study_tools.transcription import LocalTranscriptionError  # noqa: E402
 
 
 class PreparationTests(unittest.TestCase):
@@ -271,7 +272,7 @@ class PreparationTests(unittest.TestCase):
                         "it",
                     )
 
-    def test_prepare_rejects_missing_caption_and_transcript(self) -> None:
+    def test_prepare_uses_local_fallback_when_caption_is_missing(self) -> None:
         metadata = dict(self.metadata)
         metadata["subtitles"] = {}
         metadata["automatic_captions"] = {}
@@ -286,11 +287,26 @@ class PreparationTests(unittest.TestCase):
             ):
                 result = inspect_video(url, root)
 
-            with self.assertRaisesRegex(
-                PreparationError,
-                "fallback audio non ancora implementato",
+            with patch(
+                "gyte_study_tools.preparation.transcribe_locally",
+                side_effect=LocalTranscriptionError(
+                    "configuration",
+                    "Whisper non disponibile",
+                ),
             ):
-                prepare_transcript(result.workdir)
+                with self.assertRaisesRegex(
+                    PreparationError,
+                    "Fallback di trascrizione locale fallito \(configuration\)",
+                ):
+                    prepare_transcript(result.workdir)
+
+            state = json.loads(
+                (result.workdir / "pipeline-state.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertNotIn("transcribe", state["stages"])
+            self.assertNotIn("prepare", state["stages"])
 
 
 if __name__ == "__main__":
