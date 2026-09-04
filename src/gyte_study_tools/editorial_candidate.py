@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -101,14 +102,28 @@ def source_title(workdir: Path, state: dict[str, Any]) -> str:
     return "Source lesson candidate"
 
 
+def demote_embedded_headings(markdown: str) -> str:
+    """Prevent embedded prepared-analysis headings from competing with candidate H1."""
+    lines: list[str] = []
+    for line in markdown.splitlines():
+        match = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if match is None:
+            lines.append(line)
+            continue
+        level = min(6, len(match.group(1)) + 2)
+        lines.append(f"{'#' * level} {match.group(2)}")
+    return "\n".join(lines)
+
+
 def render_candidate(title: str, prepared: str) -> str:
+    embedded = demote_embedded_headings(prepared)
     return (
         f"# {title}\n\n"
         "> Editorial candidate — private derived material. This artifact is not a reviewed source lesson and has no publication authority until an explicit review checkpoint is recorded over its exact bytes.\n\n"
         "## Purpose / central thesis\n\n"
         "Refine the prepared source material below into a self-contained reviewed source lesson.\n\n"
         "## Prepared source material\n\n"
-        f"{prepared.rstrip()}\n\n"
+        f"{embedded.rstrip()}\n\n"
         "## Editorial work required\n\n"
         "- separate source facts, source interpretations and critical assessment;\n"
         "- rework examples without reproducing unnecessary transcript material;\n"
