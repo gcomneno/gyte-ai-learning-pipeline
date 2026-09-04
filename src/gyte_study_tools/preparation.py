@@ -18,6 +18,11 @@ from gyte_study_tools.inspection import (
     atomic_write_text,
     load_state,
 )
+from gyte_study_tools.transcription import (
+    LocalTranscriptionError,
+    LocalTranscriptionResult,
+    transcribe_locally,
+)
 
 
 RAW_FILENAME = "transcript.raw.txt"
@@ -291,11 +296,21 @@ def build_analysis_markdown(
     return "\n".join(lines)
 
 
+def previous_transcription_record(state_path: Path) -> dict[str, Any]:
+    state = load_state(state_path)
+    stages = state.get("stages")
+    if not isinstance(stages, dict):
+        return {}
+    transcribe = stages.get("transcribe")
+    return transcribe if isinstance(transcribe, dict) else {}
+
+
 def update_pipeline_state(
     state_path: Path,
     video_id: str,
     source_transcript_path: Path,
     source_mode: str,
+    evidence_origin: str,
     raw_path: Path,
     normalized_path: Path,
     analysis_text_path: Path,
@@ -304,17 +319,23 @@ def update_pipeline_state(
     normalized_words: int,
     analysis_words: int,
     reused: bool,
+    local_transcription: dict[str, Any] | None = None,
 ) -> None:
     now = datetime.now(timezone.utc).isoformat()
     state = load_state(state_path)
     stages = state.setdefault("stages", {})
 
-    stages["transcribe"] = {
+    transcribe_stage: dict[str, Any] = {
         "status": "complete",
         "completed_at": now,
         "source_mode": source_mode,
+        "evidence_origin": evidence_origin,
         "source_transcript": source_transcript_path.name,
     }
+    if local_transcription is not None:
+        transcribe_stage["local_transcription"] = local_transcription
+
+    stages["transcribe"] = transcribe_stage
     stages["prepare"] = {
         "status": "complete",
         "completed_at": now,
@@ -387,6 +408,7 @@ def prepare_transcript(
         if isinstance(caption, dict)
         else None
     )
+    previous_transcription = previous_transcription_record(state_path)
 
     if (
         not force
@@ -414,11 +436,27 @@ def prepare_transcript(
                 f"analysis={analysis_words}."
             )
 
+        previous_mode = previous_transcription.get("source_mode")
+        source_mode = (
+            previous_mode
+            if isinstance(previous_mode, str) and previous_mode
+            else "adopted-existing"
+        )
+        previous_origin = previous_transcription.get("evidence_origin")
+        evidence_origin = (
+            previous_origin
+            if isinstance(previous_origin, str) and previous_origin
+            else ("source-caption" if caption is not None else "local-transcription")
+        )
+        previous_local = previous_transcription.get("local_transcription")
+        local_details = previous_local if isinstance(previous_local, dict) else None
+
         update_pipeline_state(
             state_path=state_path,
             video_id=video_id,
             source_transcript_path=source_transcript_path,
-            source_mode="adopted-existing",
+            source_mode=source_mode,
+            evidence_origin=evidence_origin,
             raw_path=raw_path,
             normalized_path=normalized_path,
             analysis_text_path=analysis_text_path,
@@ -427,6 +465,7 @@ def prepare_transcript(
             normalized_words=normalized_words,
             analysis_words=analysis_words,
             reused=True,
+            local_transcription=local_details,
         )
 
         return PreparationResult(
@@ -439,16 +478,31 @@ def prepare_transcript(
             raw_words=raw_words,
             normalized_words=normalized_words,
             analysis_words=analysis_words,
-            source_mode="adopted-existing",
+            source_mode=source_mode,
             reused=True,
         )
 
     source_transcript_path: Path | None = None
     source_mode = ""
+    evidence_origin = ""
+    local_details: dict[str, Any] | None = None
 
     if not force and is_nonempty_file(raw_path):
         source_transcript_path = raw_path
-        source_mode = "stable-existing"
+        previous_mode = previous_transcription.get("source_mode")
+        source_mode = (
+            previous_mode
+            if isinstance(previous_mode, str) and previous_mode
+            else "stable-existing"
+        )
+        previous_origin = previous_transcription.get("evidence_origin")
+        evidence_origin = (
+            previous_origin
+            if isinstance(previous_origin, str) and previous_origin
+            else ("source-caption" if caption is not None else "local-transcription")
+        )
+        previous_local = previous_transcription.get("local_transcription")
+        local_details = previous_local if isinstance(previous_local, dict) else None
     elif isinstance(language, str) and language:
         source_transcript_path = locate_caption_transcript(
             workdir,
@@ -464,15 +518,37 @@ def prepare_transcript(
                 language,
             )
             source_mode = "generated-caption"
+        evidence_origin = "source-caption"
     else:
-        raise PreparationError(
-            "Nessuna caption utilizzabile e fallback audio "
-            "non ancora implementato."
+        try:
+            local_result: LocalTranscriptionResult = transcribe_locally(
+                url,
+                workdir,
+                force=force,
+            )
+        except LocalTranscriptionError as error:
+            raise PreparationError(
+                "Fallback di trascrizione locale fallito "
+                f"({error.kind}): {error}"
+            ) from error
+
+        source_transcript_path = local_result.transcript_path
+        source_mode = (
+            "reused-local-transcription"
+            if local_result.reused_transcript
+            else "generated-local-transcription"
         )
+        evidence_origin = "local-transcription"
+        local_details = {
+            "audio": local_result.audio_path.name,
+            "model": local_result.model,
+            "reused_audio": local_result.reused_audio,
+            "reused_transcript": local_result.reused_transcript,
+        }
 
     if source_transcript_path is None:
         raise PreparationError(
-            "gyte-transcript non ha prodotto un transcript individuabile."
+            "Nessuna sorgente transcript utilizzabile è stata prodotta."
         )
 
     if source_transcript_path != raw_path:
@@ -508,6 +584,7 @@ def prepare_transcript(
         video_id=video_id,
         source_transcript_path=source_transcript_path,
         source_mode=source_mode,
+        evidence_origin=evidence_origin,
         raw_path=raw_path,
         normalized_path=normalized_path,
         analysis_text_path=analysis_text_path,
@@ -516,6 +593,7 @@ def prepare_transcript(
         normalized_words=normalized_words,
         analysis_words=analysis_words,
         reused=False,
+        local_transcription=local_details,
     )
 
     return PreparationResult(
