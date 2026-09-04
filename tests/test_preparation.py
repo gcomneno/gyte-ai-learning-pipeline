@@ -126,7 +126,7 @@ class PreparationTests(unittest.TestCase):
             self.assertTrue(reused.reused)
             self.assertEqual(
                 reused.source_mode,
-                "adopted-existing",
+                "existing-caption",
             )
 
     def test_prepare_accepts_punctuation_attached_by_reflow(self) -> None:
