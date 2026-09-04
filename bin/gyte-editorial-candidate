@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Generate or reuse a private GYTE editorial candidate."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from gyte_study_tools.editorial_candidate import (
+    EditorialCandidateError,
+    generate_editorial_candidate,
+)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="gyte-editorial-candidate",
+        description="Generate or reuse a private editorial candidate from completed prepared analysis.",
+    )
+    parser.add_argument("workspace", type=Path)
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args(argv)
+
+    try:
+        result = generate_editorial_candidate(args.workspace, force=args.force)
+    except EditorialCandidateError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        json.dumps(
+            {
+                "artifact": "editorial-candidate",
+                "authority": "candidate",
+                "candidate": str(result.candidate_path),
+                "record": str(result.record_path),
+                "candidate_sha256": result.candidate_sha256,
+                "input_sha256": result.input_sha256,
+                "reused": result.reused,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
