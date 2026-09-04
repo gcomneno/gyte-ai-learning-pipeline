@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Generate a public-safe staging candidate for a declared consumer contract."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from gyte_study_tools.consumers import ConsumerContractError, generate_public_candidate
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="gyte-public-candidate")
+    parser.add_argument("workspace", type=Path)
+    parser.add_argument("reviewed_source", type=Path)
+    parser.add_argument("consumer_contract", type=Path)
+    args = parser.parse_args(argv)
+    try:
+        result = generate_public_candidate(
+            args.workspace,
+            args.reviewed_source,
+            args.consumer_contract,
+        )
+    except ConsumerContractError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+    print(
+        json.dumps(
+            {
+                "artifact": "public-lesson-candidate",
+                "authority": "staging-candidate",
+                "consumer": result.contract.consumer_id,
+                "repository": result.contract.repository,
+                "candidate": str(result.candidate_path),
+                "record": str(result.record_path),
+                "target_relative_path": result.target_relative_path,
+                "candidate_sha256": result.candidate_sha256,
+                "remote_write_authority": False,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

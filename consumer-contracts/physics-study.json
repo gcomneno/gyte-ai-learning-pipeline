@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "consumer_id": "physics-study",
+  "domain": "physics",
+  "repository": "gcomneno/physics-study",
+  "base_branch": "main",
+  "output_root": "lessons",
+  "filename_template": "{slug}.md"
+}
