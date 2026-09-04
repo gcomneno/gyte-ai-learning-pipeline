@@ -79,18 +79,14 @@ class FactCheckTests(unittest.TestCase):
             workdir = self.make_workspace(Path(temporary), with_candidate=False)
             input_path = workdir / "transcript.analysis.md"
             before = input_path.read_bytes()
-            claim_text = (
-                "The system always uses exactly 42 units. "
-                "This behavior may depend on configuration."
-            )
-            identifier = claim_id(claim_text)
+            first_claim = "The system always uses exactly 42 units."
             evidence = workdir / "evidence.json"
             evidence.write_text(
                 json.dumps(
                     {
                         "schema_version": 1,
                         "claims": {
-                            identifier: {
+                            claim_id(first_claim): {
                                 "status": "supported",
                                 "references": ["https://example.invalid/reference"],
                                 "editorial_qualification": "Supported for the declared configuration only.",
@@ -106,27 +102,22 @@ class FactCheckTests(unittest.TestCase):
             report = json.loads(result.report_path.read_text(encoding="utf-8"))
 
             self.assertEqual(input_path.read_bytes(), before)
-            self.assertEqual(report["claims"][0]["status"], "supported")
-            self.assertEqual(
-                report["claims"][0]["references"],
-                ["https://example.invalid/reference"],
-            )
-            self.assertEqual(result.unresolved_count, 0)
+            first = next(claim for claim in report["claims"] if claim["id"] == claim_id(first_claim))
+            self.assertEqual(first["status"], "supported")
+            self.assertEqual(first["references"], ["https://example.invalid/reference"])
+            self.assertEqual(result.unresolved_count, result.claim_count - 1)
 
     def test_non_unresolved_status_requires_reference(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workdir = self.make_workspace(Path(temporary), with_candidate=False)
-            claim_text = (
-                "The system always uses exactly 42 units. "
-                "This behavior may depend on configuration."
-            )
+            first_claim = "The system always uses exactly 42 units."
             evidence = workdir / "evidence.json"
             evidence.write_text(
                 json.dumps(
                     {
                         "schema_version": 1,
                         "claims": {
-                            claim_id(claim_text): {
+                            claim_id(first_claim): {
                                 "status": "supported",
                                 "references": [],
                                 "editorial_qualification": "none",
