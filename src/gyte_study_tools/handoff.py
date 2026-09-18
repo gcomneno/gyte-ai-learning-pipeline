@@ -172,11 +172,22 @@ def load_valid_public_candidate(
     return candidate_path, record_path, record, candidate_bytes
 
 
-def git_repository_identity(checkout: Path) -> tuple[str, str, str]:
+def git_repository_identity(checkout: Path) -> tuple[str, str, str, str]:
     branch = run_command(checkout, ["git", "branch", "--show-current"], "git-current-branch")
     head = run_command(checkout, ["git", "rev-parse", "HEAD"], "git-head")
     status = run_command(checkout, ["git", "status", "--porcelain"], "git-status")
-    return branch, head, status
+    origin = run_command(checkout, ["git", "remote", "get-url", "origin"], "git-origin")
+    return branch, head, status, origin
+
+
+def remote_matches_repository(origin: str, repository: str) -> bool:
+    normalized = origin.strip().removesuffix(".git").removesuffix("/")
+    expected = repository.strip().removesuffix(".git").strip("/")
+    return normalized in {
+        f"https://github.com/{expected}",
+        f"ssh://git@github.com/{expected}",
+        f"git@github.com:{expected}",
+    }
 
 
 def safe_target(checkout: Path, target_relative: str) -> Path:
@@ -247,7 +258,9 @@ def prepare_handoff(
     contract = load_consumer_contract(contract_path)
     candidate_path, record_path, record, candidate_bytes = load_valid_public_candidate(workdir, contract)
     checkout = resolve_checkout(contract, checkout_override)
-    current_branch, current_head, status = git_repository_identity(checkout)
+    current_branch, current_head, status, origin = git_repository_identity(checkout)
+    if not remote_matches_repository(origin, contract.repository):
+        raise HandoffError("Consumer checkout origin non corrisponde al repository dichiarato.")
     if status:
         raise HandoffError("Consumer checkout deve essere pulito prima del handoff.")
     if current_branch != contract.base_branch:
@@ -331,7 +344,9 @@ def apply_handoff(plan_path: Path, *, approval: str) -> HandoffApplyResult:
         raise HandoffError("Public candidate cambiato dopo la preparazione del handoff.", step="preflight")
     if sha256_bytes(contract_path.read_bytes()) != plan.get("contract_sha256"):
         raise HandoffError("Consumer contract cambiato dopo la preparazione del handoff.", step="preflight")
-    current_branch, current_head, status = git_repository_identity(checkout)
+    current_branch, current_head, status, origin = git_repository_identity(checkout)
+    if not remote_matches_repository(origin, contract.repository):
+        raise HandoffError("Consumer checkout origin cambiato o non valido.", step="preflight")
     if status or current_branch != contract.base_branch or current_head != plan.get("base_head"):
         raise HandoffError("Consumer checkout cambiato dopo la preparazione del handoff.", step="preflight")
 
