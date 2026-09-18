@@ -144,3 +144,14 @@ This contract does not introduce:
 - publication of full copyrighted posts, infographics, captions or videos;
 - automatic creation of reviewed `lesson.md` artifacts;
 - model-specific prompt-library ownership.
+
+## Completed manual Proof of Value
+
+The required manual sample is recorded in
+[`social-source-triage-pov.md`](social-source-triage-pov.md): 12 real discovery
+items were triaged without social-platform ingestion automation.
+
+The PoV found a stable platform-independent semantic record and source-resolution
+workflow, but did **not** justify automated scraping. URL/reference capture plus
+concise user observation is sufficient for the demonstrated boundary. Promotion
+remains an explicit human decision.
