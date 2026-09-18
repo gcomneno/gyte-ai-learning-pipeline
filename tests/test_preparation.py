@@ -296,7 +296,7 @@ class PreparationTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(
                     PreparationError,
-                    "Fallback di trascrizione locale fallito \(configuration\)",
+                    r"Fallback di trascrizione locale fallito \(configuration\)",
                 ):
                     prepare_transcript(result.workdir)
 
