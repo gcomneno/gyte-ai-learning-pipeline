@@ -121,6 +121,27 @@ Se `giadaware-ai` o la sua composizione Ollama non sono importabili,
 `--ai-advisory` registra un fallimento opzionale `configuration` preservando
 la preparation deterministica già riuscita.
 
+## Lingua e localizzazione
+
+L'inglese (`en`) è la lingua sorgente canonica per la semantica mantenuta del
+prodotto e per la documentazione tecnica pubblica. Le altre lingue sono
+rappresentazioni di presentazione derivate e non possono modificare risultati
+strutturati, validazione, autorizzazione, mutazioni o comportamento degli exit
+code.
+
+Le stringhe UI/CLI stabili, quando localizzate, usano risorse deterministiche;
+il contenuto di presentazione realmente dinamico può usare, quando giustificato,
+la capability provider-independent GiadaWare AI `translate_text()`. Un
+fallimento della traduzione preserva il contenuto inglese canonico e ricade
+visibilmente sull'inglese.
+
+La CLI corrente contiene ancora diagnostica italiana legacy esplicitamente
+documentata; una futura migrazione `--language` dovrà spostare atomicamente
+l'intera superficie di messaggi mantenuta, senza introdurre una localizzazione
+parziale. GYTE attualmente non ha una GUI.
+
+Vedere il documento canonico [localization and translation boundary](docs/localization.md).
+
 ## Principi
 
 Le capability AI sono opzionali e advisory. L'output AI non costituisce mai
