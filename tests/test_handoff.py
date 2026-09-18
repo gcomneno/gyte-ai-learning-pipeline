@@ -111,6 +111,8 @@ class HandoffTests(unittest.TestCase):
             return ""
         if args == ["git", "remote", "get-url", "origin"]:
             return "https://github.com/gcomneno/physics-study.git"
+        if args == ["git", "remote", "get-url", "origin"]:
+            return "https://github.com/gcomneno/physics-study.git"
         return ""
 
     def test_prepare_creates_preview_without_mutating_consumer_repo(self) -> None:
@@ -146,6 +148,8 @@ class HandoffTests(unittest.TestCase):
                     return "a" * 40
                 if args == ["git", "status", "--porcelain"]:
                     return ""
+                if args == ["git", "remote", "get-url", "origin"]:
+                    return "https://github.com/gcomneno/physics-study.git"
                 if args == ["git", "remote", "get-url", "origin"]:
                     return "https://github.com/gcomneno/not-physics-study.git"
                 return ""
@@ -196,6 +200,8 @@ class HandoffTests(unittest.TestCase):
                     return "a" * 40 if count == 1 else "c" * 40
                 if args == ["git", "status", "--porcelain"]:
                     return ""
+                if args == ["git", "remote", "get-url", "origin"]:
+                    return "https://github.com/gcomneno/physics-study.git"
                 if args[:3] == ["gh", "pr", "create"]:
                     return "https://github.com/gcomneno/physics-study/pull/123"
                 return ""
@@ -240,6 +246,8 @@ class HandoffTests(unittest.TestCase):
                     return "a" * 40
                 if args == ["git", "status", "--porcelain"]:
                     return ""
+                if args == ["git", "remote", "get-url", "origin"]:
+                    return "https://github.com/gcomneno/physics-study.git"
                 if args == ["python", "-m", "consumer_validation"]:
                     raise HandoffError("consumer failed", step="consumer-validation")
                 return ""
