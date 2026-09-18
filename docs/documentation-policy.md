@@ -4,9 +4,10 @@
 
 ## Canonical language
 
-English is the canonical and default language for maintained public
-documentation. Italian is an officially maintained translation for the
-document families listed as bilingual below.
+English (`en`) is the canonical and default source language for maintained public
+documentation. Italian is a derived, officially maintained translation for the
+document families listed as bilingual below. The repository-wide presentation
+and translation boundary is defined in [`localization.md`](localization.md).
 
 When English and Italian wording diverge, the English document is the source
 of truth. A translation must preserve requirements, examples, warnings,
@@ -74,10 +75,20 @@ The checks verify required pairs, reciprocal language selectors and valid
 relative Markdown links. They do not perform machine translation or semantic
 comparison; semantic parity remains a reviewer responsibility.
 
+## Relationship to product localization
+
+Documentation mirrors are derived presentation artifacts; they do not create a
+parallel source of product semantics. Static product localization, future CLI
+language selection, optional dynamic translation and English fallback are
+governed separately by [`localization.md`](localization.md).
+
+GiadaWare AI may assist candidate translation where appropriate, but its output
+is not self-approving. Maintained documentation translation remains a reviewed
+repository artifact.
+
 ## Non-goals
 
-This policy does not introduce runtime or CLI localization, translation of
-prompts or templates, automatic translation, semantic-comparison tooling, a
-documentation-site generator, or a translation-management platform. Private
-study material remains outside the repository and outside the bilingual
-documentation contract.
+This policy does not itself introduce runtime or CLI localization, translation
+of prompts or templates, semantic-comparison tooling, a documentation-site
+generator, or a translation-management platform. Private study material remains
+outside the repository and outside the bilingual documentation contract.
