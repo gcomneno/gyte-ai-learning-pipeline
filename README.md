@@ -80,6 +80,12 @@ It can be overridden with `--work-root` or by setting
 
 ## Technical Preview: install and try
 
+**[Download GYTE AI Learning Pipeline v0.5.0 Technical Preview](https://github.com/gcomneno/gyte-ai-learning-pipeline/releases/tag/v0.5.0)**
+
+New here? Follow the **[Quick Start installation guide](docs/installation.md#install-from-the-release-archive)**
+to verify the SHA-256 checksum, install the CLI without a Git checkout, check
+the required external tools, and run your first source.
+
 GYTE AI Learning Pipeline 0.5.0 is a CLI-only Technical Preview for technically
 curious Linux users. It does not provide a GUI, bundle its external tools, or
 silently install system dependencies.
