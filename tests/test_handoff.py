@@ -109,6 +109,8 @@ class HandoffTests(unittest.TestCase):
             return "a" * 40
         if args == ["git", "status", "--porcelain"]:
             return ""
+        if args == ["git", "remote", "get-url", "origin"]:
+            return "https://github.com/gcomneno/physics-study.git"
         return ""
 
     def test_prepare_creates_preview_without_mutating_consumer_repo(self) -> None:
@@ -131,6 +133,29 @@ class HandoffTests(unittest.TestCase):
             self.assertFalse(plan["remote_write_authority"])
             self.assertEqual(plan["base_head"], "a" * 40)
             self.assertIn("public-candidate.md", result.preview_path.read_text(encoding="utf-8"))
+
+    def test_prepare_rejects_checkout_for_wrong_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workdir, checkout, contract = self.make_fixture(root)
+
+            def wrong_origin(cwd: Path, args: list[str], label: str) -> str:
+                if args == ["git", "branch", "--show-current"]:
+                    return "main"
+                if args == ["git", "rev-parse", "HEAD"]:
+                    return "a" * 40
+                if args == ["git", "status", "--porcelain"]:
+                    return ""
+                if args == ["git", "remote", "get-url", "origin"]:
+                    return "https://github.com/gcomneno/not-physics-study.git"
+                return ""
+
+            with patch(
+                "gyte_study_tools.handoff.run_command",
+                side_effect=wrong_origin,
+            ):
+                with self.assertRaises(HandoffError):
+                    prepare_handoff(workdir, contract)
 
     def test_wrong_approval_rejects_before_repository_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
