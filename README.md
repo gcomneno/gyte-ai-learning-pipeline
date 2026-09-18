@@ -78,34 +78,77 @@ Default private directory:
 It can be overridden with `--work-root` or by setting
 `GYTE_STUDY_WORK_ROOT`.
 
-## Local prerequisites
+## Technical Preview: install and try
 
-- Python 3
-- `gyte-transcript`
-- `gyte-reflow-text`
-- `yt-dlp`
-- Calibre:
-  - `ebook-convert`
-  - `ebook-meta`
-- `pdftotext`
+GYTE AI Learning Pipeline 0.5.0 is a CLI-only Technical Preview for technically
+curious Linux users. It does not provide a GUI, bundle its external tools, or
+silently install system dependencies.
 
-## Environment check
+The release archive can be used without Git and without keeping a repository
+checkout. After obtaining `gyte-ai-learning-pipeline-0.5.0.tar.gz` and
+`SHA256SUMS` in the same directory:
 
 ```bash
-bin/gyte-lesson-kindle --check
-```
-
-## Intended local installation
-
-```bash
+sha256sum -c SHA256SUMS
+tar -xzf gyte-ai-learning-pipeline-0.5.0.tar.gz
+cd gyte-ai-learning-pipeline-0.5.0
 scripts/install-local.sh
 ```
 
-The installer creates the link:
+The installer copies the versioned runtime to:
 
 ```text
-~/.local/bin/gyte-lesson-kindle
+~/.local/share/gyte-ai-learning-pipeline/0.5.0/
 ```
+
+and exposes the shipped `gyte-*` commands through `~/.local/bin/`. It refuses
+to overwrite an existing installation of the same version or an existing
+command with the same name.
+
+Ensure `~/.local/bin` is on `PATH`, then verify the installation:
+
+```bash
+gyte-lesson-kindle --version
+gyte-lesson-kindle --check
+```
+
+Expected version:
+
+```text
+gyte-lesson-kindle 0.5.0
+```
+
+### External prerequisites
+
+The Technical Preview expects these commands to be installed separately:
+
+- Python 3;
+- GYTE commands `gyte-transcript` and `gyte-reflow-text`;
+- `yt-dlp`;
+- Calibre commands `ebook-convert` and `ebook-meta`;
+- `pdftotext`.
+
+GYTE is a separate project and remains an explicit external prerequisite. This
+release does not clone, install, upgrade or bundle GYTE or the other external
+tools.
+
+Run:
+
+```bash
+gyte-lesson-kindle --check
+```
+
+before the first real source. Missing prerequisites are reported rather than
+installed automatically.
+
+For the first preparation run:
+
+```bash
+gyte-lesson-kindle "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+Private workspaces are created outside the installed program, under
+`~/.local/share/gyte-study-private-material` by default.
 
 The deterministic base pipeline does not require `giadaware-ai`.
 
@@ -425,7 +468,7 @@ received, delivered or converted it on the final device.
 
 ## Current release
 
-Stable version: `0.4.0`.
+Technical Preview version: `0.5.0`.
 
 The complete assisted pipeline is available:
 
@@ -443,7 +486,9 @@ YouTube URL
 Full notes:
 
 - `CHANGELOG.md`
-- `docs/release-notes-v0.4.0.md`
+- `docs/release-notes-v0.5.0.md`
+
+Historical v0.4.0 notes remain available in `docs/release-notes-v0.4.0.md`.
 
 ## Article input
 
