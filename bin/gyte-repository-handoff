@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Prepare and apply approval-gated consumer repository handoffs."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from gyte_study_tools.handoff import HandoffError, apply_handoff, prepare_handoff
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="gyte-repository-handoff")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    prepare = subparsers.add_parser("prepare")
+    prepare.add_argument("workspace", type=Path)
+    prepare.add_argument("consumer_contract", type=Path)
+    prepare.add_argument("--checkout", type=Path)
+
+    apply = subparsers.add_parser("apply")
+    apply.add_argument("plan", type=Path)
+    apply.add_argument(
+        "--approve",
+        required=True,
+        help="Exact plan_id displayed by the prepare operation.",
+    )
+
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "prepare":
+            result = prepare_handoff(
+                args.workspace,
+                args.consumer_contract,
+                checkout_override=args.checkout,
+            )
+            payload = {
+                "operation": "repository-handoff",
+                "status": "prepared",
+                "plan": str(result.plan_path),
+                "preview": str(result.preview_path),
+                "plan_id": result.plan_id,
+                "branch": result.branch,
+                "target": str(result.target_path),
+                "remote_write_authority": False,
+                "next": (
+                    "Review the preview, then run apply with --approve equal to this exact plan_id."
+                ),
+            }
+        else:
+            result = apply_handoff(args.plan, approval=args.approve)
+            payload = {
+                "operation": "repository-handoff",
+                "status": "complete",
+                "result": str(result.result_path),
+                "branch": result.branch,
+                "commit_sha": result.commit_sha,
+                "pull_request_url": result.pull_request_url,
+                "merge_authority": False,
+            }
+    except HandoffError as error:
+        print(f"ERROR[{error.step}]: {error}", file=sys.stderr)
+        return 1
+
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
