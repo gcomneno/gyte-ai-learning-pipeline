@@ -4,9 +4,11 @@
 
 ## Lingua canonica
 
-L'inglese è la lingua canonica e predefinita della documentazione pubblica
-mantenuta. L'italiano è una traduzione ufficialmente mantenuta per le famiglie
-di documenti indicate come bilingui di seguito.
+L'inglese (`en`) è la lingua sorgente canonica e predefinita della documentazione
+pubblica mantenuta. L'italiano è una traduzione derivata, ufficialmente mantenuta
+per le famiglie di documenti indicate come bilingui di seguito. Il confine di
+presentazione e traduzione del repository è definito nel documento canonico
+[`localization.md`](../localization.md).
 
 Quando il testo inglese e quello italiano divergono, il documento inglese è la
 fonte autorevole. Una traduzione deve preservare requisiti, esempi, avvisi,
@@ -75,10 +77,21 @@ I controlli verificano le coppie richieste, i selettori di lingua reciproci e
 la validità dei link Markdown relativi. Non effettuano traduzione automatica o
 confronto semantico; la parità semantica resta responsabilità della review.
 
+## Relazione con la localizzazione del prodotto
+
+I mirror della documentazione sono artefatti di presentazione derivati; non
+creano una fonte parallela della semantica del prodotto. Localizzazione statica,
+futura selezione della lingua CLI, traduzione dinamica opzionale e fallback
+all'inglese sono governati separatamente da [`localization.md`](../localization.md).
+
+GiadaWare AI può assistere la produzione di traduzioni candidate quando
+appropriato, ma il suo output non si auto-approva. La traduzione mantenuta della
+documentazione resta un artefatto revisionato del repository.
+
 ## Non-obiettivi
 
-Questa policy non introduce localizzazione runtime o CLI, traduzione di prompt
-o template, traduzione automatica, strumenti di confronto semantico, un
-generatore di siti documentali o una piattaforma di gestione delle traduzioni.
-Il materiale di studio privato resta fuori dal repository e fuori dal
-contratto di documentazione bilingue.
+Questa policy non introduce di per sé localizzazione runtime o CLI, traduzione
+di prompt o template, strumenti di confronto semantico, un generatore di siti
+documentali o una piattaforma di gestione delle traduzioni. Il materiale di
+studio privato resta fuori dal repository e fuori dal contratto di
+documentazione bilingue.
