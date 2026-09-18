@@ -111,8 +111,6 @@ class HandoffTests(unittest.TestCase):
             return ""
         if args == ["git", "remote", "get-url", "origin"]:
             return "https://github.com/gcomneno/physics-study.git"
-        if args == ["git", "remote", "get-url", "origin"]:
-            return "https://github.com/gcomneno/physics-study.git"
         return ""
 
     def test_prepare_creates_preview_without_mutating_consumer_repo(self) -> None:
@@ -148,8 +146,6 @@ class HandoffTests(unittest.TestCase):
                     return "a" * 40
                 if args == ["git", "status", "--porcelain"]:
                     return ""
-                if args == ["git", "remote", "get-url", "origin"]:
-                    return "https://github.com/gcomneno/physics-study.git"
                 if args == ["git", "remote", "get-url", "origin"]:
                     return "https://github.com/gcomneno/not-physics-study.git"
                 return ""
