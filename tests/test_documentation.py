@@ -100,5 +100,18 @@ class DocumentationTests(unittest.TestCase):
                         )
 
 
+    def test_localization_contract_preserves_semantics_and_fallback(self) -> None:
+        localization = _read(Path("docs/localization.md"))
+
+        self.assertIn("English (`en`) as the single canonical source language", localization)
+        self.assertIn("TranslateTextCapability / AICapabilities.translate_text()", localization)
+        self.assertIn("visibly fall back to English", localization)
+        self.assertIn("do not change exit codes, validation results, authorization, or mutations", localization)
+        self.assertIn("deterministic, version-controlled catalogs", localization)
+        self.assertIn("GYTE currently has a CLI and no GUI", localization)
+        self.assertIn("legacy Italian CLI diagnostics/help", localization)
+
+
+
 if __name__ == "__main__":
     unittest.main()
