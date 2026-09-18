@@ -164,3 +164,14 @@ Only after that review may follow-up implementation issues approve a canonical r
 ## Copyright and privacy boundary
 
 No projection process may silently publish copyrighted private source material. Rights/licensing decisions remain explicit. Private evidence must not be copied into agent packages merely because the package is locally generated.
+
+## Completed Proof of Value
+
+The required controlled single-source PoV is recorded in
+[`source-to-skill-pov.md`](source-to-skill-pov.md). It uses the maintained
+approval-gated repository-handoff contract as one reviewed knowledge basis and
+produces intentionally different human-learning and agent-skill candidates.
+
+The PoV supports a small shared semantic core while rejecting mechanical
+human↔agent conversion and does not introduce a generic generator or host-specific
+skill adapter.
